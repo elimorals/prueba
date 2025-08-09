@@ -1,19 +1,9 @@
 {
-  "buildCommand": "npm run build",
+  "buildCommand": "pnpm run build",
   "outputDirectory": ".next",
   "framework": "nextjs",
-  "installCommand": "npm install",
+  "installCommand": "pnpm install",
   "regions": ["iad1"],
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://tu-backend-url.railway.app",
-    "NEXT_PUBLIC_SUPABASE_URL": "@supabase_url",
-    "NEXT_PUBLIC_SUPABASE_ANON_KEY": "@supabase_anon_key"
-  },
-  "build": {
-    "env": {
-      "NPM_FLAGS": "--legacy-peer-deps"
-    }
-  },
   "functions": {
     "app/**/*": {
       "maxDuration": 30
