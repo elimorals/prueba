@@ -60,40 +60,44 @@ export function DashboardPage() {
     <SidebarInset>
       <div className="flex h-screen">
         {/* Área Principal */}
-        <div className="flex-1 flex flex-col w-full">
-          {/* Header */}
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <div className="flex-1">
-              <h1 className="text-xl font-semibold text-foreground">Dashboard de Trabajo</h1>
-              <p className="text-sm text-muted-foreground">Bienvenido de nuevo, Dr. González</p>
+        <div className="flex-1 flex flex-col w-full min-w-0">
+          {/* Header - Responsive */}
+          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-2 sm:px-4 safe-area-top">
+            <SidebarTrigger className="-ml-1 tap-target" />
+            <Separator orientation="vertical" className="mr-2 h-4 hidden sm:block" />
+            <div className="flex-1 min-w-0">
+              <h1 className="heading-responsive font-semibold text-foreground truncate">Dashboard de Trabajo</h1>
+              <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Bienvenido de nuevo, Dr. González</p>
             </div>
-            {/* En el header, añadir el ThemeToggle */}
-            <div className="flex items-center gap-2">
+            {/* Header responsive - ocultar elementos en móvil */}
+            <div className="flex items-center gap-1 sm:gap-2">
               <ThemeToggle />
-              <Button variant="outline" size="sm">
+              <Button variant="outline" size="sm" className="hidden sm:flex">
                 <Calendar className="w-4 h-4 mr-2" />
                 Hoy: {new Date().toLocaleDateString('es-ES', { day: 'numeric', month: 'long', year: 'numeric' })}
+              </Button>
+              {/* Botón de fecha simplificado para móvil */}
+              <Button variant="outline" size="sm" className="sm:hidden">
+                <Calendar className="w-4 h-4" />
               </Button>
             </div>
           </header>
 
-          {/* Contenido Principal */}
-          <main className="flex-1 overflow-auto p-6">
-            {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Contenido Principal - Responsive */}
+          <main className="flex-1 overflow-auto mobile-scroll spacing-responsive safe-area-bottom">
+            {/* KPIs - Grid responsive */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 mb-6 sm:mb-8">
               {kpiData.map((kpi, index) => (
                 <Card key={index} className="border-0 shadow-sm">
-                  <CardContent className="p-6">
+                  <CardContent className="p-4 sm:p-6">
                     <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground mb-1">{kpi.title}</p>
-                        <p className="text-2xl font-bold text-foreground">{kpi.value}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs sm:text-sm font-medium text-muted-foreground mb-1 truncate">{kpi.title}</p>
+                        <p className="text-xl sm:text-2xl font-bold text-foreground">{kpi.value}</p>
                         <p className="text-xs text-muted-foreground mt-1">{kpi.change}</p>
                       </div>
-                      <div className={`w-12 h-12 ${kpi.bgColor} rounded-lg flex items-center justify-center`}>
-                        <kpi.icon className={`w-6 h-6 ${kpi.color}`} />
+                      <div className={`w-10 h-10 sm:w-12 sm:h-12 ${kpi.bgColor} rounded-lg flex items-center justify-center flex-shrink-0 ml-2`}>
+                        <kpi.icon className={`w-5 h-5 sm:w-6 sm:h-6 ${kpi.color}`} />
                       </div>
                     </div>
                   </CardContent>
@@ -101,8 +105,8 @@ export function DashboardPage() {
               ))}
             </div>
 
-            {/* Resumen de Actividad Diaria */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            {/* Resumen de Actividad Diaria - Mobile Stack */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6 mb-6 mobile-card-stack lg:mobile-card-stack-none">
               <Card className="border-0 shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-foreground">Actividad de Hoy</CardTitle>

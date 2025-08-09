@@ -64,7 +64,7 @@ export function PerfilUsuarioPage() {
           <Separator orientation="vertical" className="mr-2 h-4" />
           <div className="flex-1">
             <h1 className="text-xl font-semibold text-foreground">Perfil de Usuario</h1>
-            <p className="text-sm text-muted-foreground">Gestiona tu cuenta y configuración de Radix IA</p>
+            <p className="text-sm text-muted-foreground">Gestiona tu cuenta y configuración de RADIX</p>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
@@ -271,7 +271,7 @@ export function PerfilUsuarioPage() {
                   <Card>
                     <CardHeader>
                       <CardTitle>Configuración de la Aplicación</CardTitle>
-                      <CardDescription>Personaliza tu experiencia en Radix IA</CardDescription>
+                      <CardDescription>Personaliza tu experiencia en RADIX</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div className="flex items-center justify-between">

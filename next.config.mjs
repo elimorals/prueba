@@ -8,19 +8,31 @@ const nextConfig = {
   },
   images: {
     unoptimized: true,
+    domains: ['your-supabase-project.supabase.co'],
   },
-  // Configuración para desarrollo - permite acceso desde otras IPs en la red local
+  // API rewrites para conectar con el backend (solo si la URL está definida)
   async rewrites() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+    if (apiUrl && apiUrl !== 'undefined') {
+      return [
+        {
+          source: '/api/:path*',
+          destination: `${apiUrl}/:path*`,
+        },
+      ]
+    }
     return []
   },
-  // Permite solicitudes de origen cruzado en desarrollo
-  allowedDevOrigins: [
+  // Configuración para producción y desarrollo
+  allowedDevOrigins: process.env.NODE_ENV === 'development' ? [
     '192.168.0.28',
-    '192.168.1.*', // Permite cualquier IP en el rango 192.168.1.x
-    '192.168.0.*', // Permite cualquier IP en el rango 192.168.0.x
-    '10.0.0.*',    // Permite cualquier IP en el rango 10.0.0.x
-    '172.16.*.*',  // Permite cualquier IP en el rango 172.16.x.x
-  ],
+    '192.168.1.*',
+    '192.168.0.*', 
+    '10.0.0.*',
+    '172.16.*.*',
+  ] : [],
+  // Optimizaciones para Vercel (configuración actualizada)
+  serverExternalPackages: ['sharp'],
 }
 
 export default nextConfig

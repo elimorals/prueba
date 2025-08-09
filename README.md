@@ -218,7 +218,14 @@ GET    /api/v1/rag/buscar                   # Búsqueda semántica
 ```env
 SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_KEY=your-service-key-here
+
+# TGI de Hugging Face (NUEVO)
+TGI_URL=https://dbrmcpr7fjvk2cz6.us-east-1.aws.endpoints.huggingface.cloud
+TGI_MULTIMODAL_URL=https://tu-endpoint-multimodal.us-east-1.aws.endpoints.huggingface.cloud
+
+# LM Studio (compatibilidad temporal)
 LM_STUDIO_URL=http://localhost:1234/v1
+
 OPENAI_API_KEY=your-openai-api-key-here
 HOST=127.0.0.1
 PORT=8000
@@ -233,8 +240,72 @@ NEXT_PUBLIC_API_URL=http://127.0.0.1:8000
 ### Base de Datos
 Ejecutar `backend/database_setup.sql` en Supabase SQL Editor para crear todas las tablas y datos de ejemplo.
 
-### IA Local
-Para usar IA local con LM Studio:
+### IA con TGI de Hugging Face
+El sistema ahora usa TGI (Text Generation Inference) de Hugging Face con streaming avanzado:
+
+**Para texto con streaming:**
+```bash
+curl -N https://dbrmcpr7fjvk2cz6.us-east-1.aws.endpoints.huggingface.cloud/v1/chat/completions \
+-X POST \
+-d '{
+  "model": "tgi",
+  "messages": [
+    {
+      "role": "user",
+      "content": "me puedes explicar a detalle que es el paracetamol"
+    }
+  ],
+  "stream": true,
+  "temperature": 0.7,
+  "max_tokens": 1024
+}' \
+-H "Content-Type: application/json"
+```
+
+**Formato de respuesta streaming (SSE):**
+```
+data: {"object":"chat.completion.chunk","choices":[{"delta":{"role":"assistant","content":"¡Claro"}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"delta":{"content":" que"}}]}
+
+data: {"object":"chat.completion.chunk","choices":[{"delta":{"content":" sí"}}]}
+
+data: [DONE]
+```
+
+**Buffer Anti-Duplicación en Frontend:**
+El chat implementa un sistema de buffer avanzado para evitar duplicación tipo "UnaUna vezVez":
+
+```javascript
+// Buffer para acumular fragmentos SSE
+let buffer = "";
+
+// Procesar solo mensajes completos (\n\n delimitados)
+while ((boundaryIndex = buffer.indexOf('\n\n')) >= 0) {
+  const messageChunk = buffer.slice(0, boundaryIndex);
+  buffer = buffer.slice(boundaryIndex + 2);
+  
+  // Efecto máquina de escribir sin duplicación
+  if (content) {
+    lastMessage.contenido += content; // ✅ Aditivo, no reemplazo
+  }
+}
+```
+
+**Para análisis de imágenes DICOM:**
+```bash
+curl -X POST http://localhost:8000/api/v1/dicom/analizar-ia \
+-H "Content-Type: application/json" \
+-d '{
+  "imagen_base64": "base64_de_imagen_dicom",
+  "contexto_clinico": "Paciente con dolor torácico",
+  "tipo_estudio": "Radiografía de tórax",
+  "pregunta_especifica": "¿Hay signos de neumonía?"
+}'
+```
+
+### IA Local (LM Studio) - Compatibilidad
+Para mantener compatibilidad con LM Studio:
 1. Descargar e instalar LM Studio
 2. Descargar modelo Llama 2 7B
 3. Iniciar servidor en puerto 1234

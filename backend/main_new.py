@@ -11,8 +11,7 @@ from datetime import datetime
 
 # Importar modelos y servicios
 from models import *
-from services import PacienteService, EstudioService, ReporteService, ChatService, IAService
-from sentence_transformers import SentenceTransformer
+from services import PacienteService, EstudioService, ReporteService, ChatService, IAService, EmbeddingService
 
 # Cargar variables de entorno desde .env
 load_dotenv()
@@ -40,21 +39,23 @@ supabase_url: str = os.environ.get("SUPABASE_URL")
 supabase_key: str = os.environ.get("SUPABASE_SERVICE_KEY")
 supabase: Client = create_client(supabase_url, supabase_key)
 
-# URL del modelo de IA (LLM)
-lm_studio_url: str = os.environ.get("LM_STUDIO_URL", "http://localhost:1234/v1")
-print(f"INFO: Backend configurado para conectar con LLM en: {lm_studio_url}")
+# URL del modelo de IA (TGI)
+tgi_url: str = os.environ.get("TGI_URL", os.environ.get("LM_STUDIO_URL", "http://localhost:1234/v1"))
+print(f"INFO: Backend configurado para conectar con TGI en: {tgi_url}")
 
-# Cargar el modelo de embeddings Jina v2 una sola vez al iniciar la app
+# Configurar servicio de embeddings externos
+embedding_api_url = os.environ.get("EMBEDDING_API_URL", "https://fs7mn6r3tsu0su7q.us-east-1.aws.endpoints.huggingface.cloud")
+print(f"Configurando servicio de embeddings externos: {embedding_api_url}")
+
 try:
-    print("Cargando modelo de embeddings Jina v2 (español)...")
-    embedding_model = SentenceTransformer('jinaai/jina-embeddings-v2-base-es', trust_remote_code=True)
-    print("Modelo de embeddings cargado exitosamente.")
+    embedding_service = EmbeddingService(embedding_api_url)
+    print("Servicio de embeddings configurado exitosamente.")
 except Exception as e:
-    print(f"Error fatal: no se pudo cargar el modelo de embeddings. {e}")
+    print(f"Error fatal: no se pudo configurar el servicio de embeddings. {e}")
     exit()
 
 # --- Inicializar Servicios ---
-ia_service = IAService(supabase, embedding_model, lm_studio_url)
+ia_service = IAService(supabase, embedding_service, tgi_url)
 paciente_service = PacienteService(supabase)
 estudio_service = EstudioService(supabase)
 reporte_service = ReporteService(supabase, ia_service)
@@ -84,7 +85,7 @@ async def health_check():
         "services": {
             "database": "connected",
             "ai_model": "loaded",
-            "embedding_model": "ready"
+            "embedding_service": "ready"
         }
     }
 
@@ -290,6 +291,11 @@ async def analizar_dicom(archivo: UploadFile = File(...)):
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analizando DICOM: {str(e)}")
+
+@app.post("/api/v1/dicom/analizar-ia", response_model=BaseResponse, tags=["DICOM"])
+async def analizar_dicom_con_ia(request: DicomAnalysisRequest):
+    """Analizar imagen DICOM usando IA con TGI"""
+    return await ia_service.analizar_imagen_dicom(request)
 
 # ===================================
 # CONFIGURACIÓN DE SERVIDOR

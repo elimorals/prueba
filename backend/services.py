@@ -15,7 +15,6 @@ from math import ceil
 
 import httpx
 from supabase import Client
-from sentence_transformers import SentenceTransformer
 
 from models import (
     # Pacientes
@@ -31,7 +30,8 @@ from models import (
     # RAG
     RAGSearchRequest, RAGSearchResult,
     # Otros
-    LMStudioRequest, PaginatedResponse, BaseResponse, ArchivoSubida,
+    LMStudioRequest, TGIRequest, TGIImageRequest, DicomAnalysisRequest,
+    PaginatedResponse, BaseResponse, ArchivoSubida,
     # Enums
     EstadoReporteEnum, EspecialidadEnum, RolChatEnum
 )
@@ -39,6 +39,72 @@ from models import (
 # ===================================
 # CONFIGURACIÓN Y UTILIDADES
 # ===================================
+
+class EmbeddingService:
+    """Servicio para generar embeddings usando API externa de Hugging Face"""
+    
+    def __init__(self, api_url: str):
+        self.api_url = api_url
+        self.headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/json"
+        }
+    
+    async def encode(self, text: str) -> List[float]:
+        """Generar embedding para un texto usando la API externa"""
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    self.api_url,
+                    headers=self.headers,
+                    json={
+                        "inputs": text,
+                        "parameters": {}
+                    }
+                )
+                
+                if not response.is_success:
+                    raise Exception(f"Error en API de embeddings: {response.status_code} - {response.text}")
+                
+                result = response.json()
+                
+                # El resultado puede venir en diferentes formatos
+                if isinstance(result, list):
+                    # Si es una lista directa de números
+                    if result and isinstance(result[0], (int, float)):
+                        return result
+                    # Si es una lista con un vector anidado (caso actual)
+                    elif result and isinstance(result[0], list):
+                        return result[0]  # El vector está en el primer elemento
+                    # Si es una lista con objetos
+                    elif result and isinstance(result[0], dict) and 'embedding' in result[0]:
+                        return result[0]['embedding']
+                    else:
+                        return result[0] if result else []  # Asumir que el primer elemento es el vector
+                elif isinstance(result, dict):
+                    # Si es un objeto con la clave embedding
+                    if 'embedding' in result:
+                        return result['embedding']
+                    elif 'embeddings' in result:
+                        return result['embeddings'][0] if isinstance(result['embeddings'][0], list) else result['embeddings']
+                    else:
+                        # Buscar cualquier lista de números
+                        for value in result.values():
+                            if isinstance(value, list) and len(value) > 0 and isinstance(value[0], (int, float)):
+                                return value
+                
+                raise ValueError(f"Formato de respuesta inesperado: {result}")
+                
+        except httpx.TimeoutException:
+            raise Exception("Timeout al generar embedding")
+        except Exception as e:
+            print(f"Error generando embedding: {e}")
+            raise e
+    
+    def encode_sync(self, text: str) -> List[float]:
+        """Versión síncrona para compatibilidad (usar encode() preferentemente)"""
+        import asyncio
+        return asyncio.run(self.encode(text))
 
 class DatabaseService:
     """Clase base para servicios que interactúan con la base de datos"""
@@ -473,17 +539,19 @@ class EstudioService(DatabaseService):
 class IAService:
     """Servicio para funcionalidades de IA, incluyendo generación de reportes y RAG"""
     
-    def __init__(self, supabase: Client, embedding_model: SentenceTransformer, 
-                 lm_studio_url: str):
+    def __init__(self, supabase: Client, embedding_service: EmbeddingService, 
+                 tgi_url: str):
         self.supabase = supabase
-        self.embedding_model = embedding_model
-        self.lm_studio_url = lm_studio_url
+        self.embedding_service = embedding_service
+        self.tgi_url = tgi_url  # URL del endpoint TGI de Hugging Face
+        # Mantener compatibilidad temporal
+        self.lm_studio_url = tgi_url
     
     async def buscar_rag(self, request: RAGSearchRequest) -> List[RAGSearchResult]:
         """Realizar búsqueda semántica usando RAG"""
         try:
             # Generar embedding de la consulta
-            query_embedding = self.embedding_model.encode(request.query).tolist()
+            query_embedding = await self.embedding_service.encode(request.query)
             
             # Parámetros para la función RPC
             rpc_params = {
@@ -496,8 +564,8 @@ class IAService:
             if request.paciente_id:
                 rpc_params['paciente_filter'] = str(request.paciente_id)
             
-            # Ejecutar búsqueda
-            result = self.supabase.rpc('match_report_embeddings', rpc_params).execute()
+            # Ejecutar búsqueda (usar función temporal para 1024 dimensiones)
+            result = self.supabase.rpc('match_report_embeddings_1024', rpc_params).execute()
             
             # Convertir resultados
             resultados = []
@@ -516,6 +584,92 @@ class IAService:
         except Exception as e:
             print(f"Error en búsqueda RAG: {e}")
             return []
+    
+    async def analizar_imagen_dicom(self, request: DicomAnalysisRequest) -> BaseResponse:
+        """Analizar imagen DICOM usando modelo multimodal con TGI"""
+        start_time = time.time()
+        
+        try:
+            # Construir prompt para análisis de imagen médica
+            prompt = f"""Eres un radiólogo experto. Analiza la siguiente imagen médica DICOM y proporciona un análisis detallado en español.
+
+CONTEXTO CLÍNICO: {request.contexto_clinico or 'No especificado'}
+TIPO DE ESTUDIO: {request.tipo_estudio or 'No especificado'}
+PREGUNTA ESPECÍFICA: {request.pregunta_especifica or 'Análisis general'}
+
+Proporciona:
+1. DESCRIPCIÓN TÉCNICA: Calidad de la imagen, proyección, contraste
+2. HALLAZGOS RADIOLÓGICOS: Descripción detallada de hallazgos
+3. IMPRESIÓN DIAGNÓSTICA: Conclusiones principales
+4. RECOMENDACIONES: Estudios adicionales si es necesario
+
+Mantén un lenguaje médico profesional y preciso."""
+
+            # Preparar mensaje multimodal para TGI
+            multimodal_message = {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{request.imagen_base64}"
+                        }
+                    }
+                ]
+            }
+            
+            # Preparar solicitud TGI para imagen
+            tgi_request = TGIImageRequest(
+                messages=[multimodal_message],
+                temperature=0.3,
+                max_tokens=1500,
+                stream=False
+            )
+            
+            # Realizar solicitud a TGI
+            async with httpx.AsyncClient(timeout=300.0) as client:  # Más tiempo para análisis de imagen
+                response = await client.post(
+                    f"{self.tgi_url}/v1/chat/completions",
+                    json=tgi_request.model_dump(),
+                    headers={"Content-Type": "application/json"}
+                )
+                response.raise_for_status()
+            
+            ai_response = response.json()
+            analisis_resultado = ai_response['choices'][0]['message']['content']
+            
+            # Calcular tiempo de análisis
+            tiempo_analisis = int(time.time() - start_time)
+            
+            return BaseResponse(
+                success=True,
+                message="Análisis de imagen DICOM completado exitosamente",
+                data={
+                    "analisis": analisis_resultado,
+                    "tiempo_procesamiento": tiempo_analisis,
+                    "modelo_usado": "TGI Multimodal",
+                    "contexto_clinico": request.contexto_clinico,
+                    "tipo_estudio": request.tipo_estudio
+                }
+            )
+            
+        except httpx.HTTPStatusError as e:
+            error_detail = f"Error HTTP {e.response.status_code}: {e.response.text}"
+            return BaseResponse(
+                success=False,
+                message=f"Error en análisis de imagen: {error_detail}",
+                data=None
+            )
+        except Exception as e:
+            return BaseResponse(
+                success=False,
+                message=f"Error inesperado en análisis de imagen: {str(e)}",
+                data=None
+            )
     
     async def generar_reporte_con_ia(self, request: ReportGenerationRequest) -> BaseResponse:
         """Generar reporte médico usando IA con contexto RAG opcional"""
@@ -565,19 +719,21 @@ class IAService:
             Genera el reporte ahora:
             """
             
-            # Preparar solicitud a LM Studio
+            # Preparar solicitud a TGI
             messages = [ChatMessage(role=RolChatEnum.USER, content=prompt)]
-            lm_request = LMStudioRequest(
+            tgi_request = TGIRequest(
                 messages=messages,
                 temperature=request.temperatura,
-                max_tokens=2048
+                max_tokens=2048,
+                stream=False
             )
             
-            # Realizar solicitud a IA
+            # Realizar solicitud a TGI
             async with httpx.AsyncClient(timeout=180.0) as client:
                 response = await client.post(
-                    f"{self.lm_studio_url}/chat/completions", 
-                    json=lm_request.model_dump()
+                    f"{self.tgi_url}/v1/chat/completions", 
+                    json=tgi_request.model_dump(),
+                    headers={"Content-Type": "application/json"}
                 )
                 response.raise_for_status()
             
@@ -604,7 +760,7 @@ class IAService:
                 'reporte_generado': reporte_generado,
                 'confianza_ia': confianza,
                 'tiempo_generacion': tiempo_generacion,
-                'modelo_ia_usado': lm_request.model,
+                'modelo_ia_usado': tgi_request.model,
                 'estado': EstadoReporteEnum.BORRADOR,
                 # Extraer secciones del reporte
                 'hallazgos': self._extraer_seccion(reporte_generado, 'HALLAZGOS'),
@@ -704,9 +860,9 @@ class IAService:
                                        contenido: str):
         """Generar y guardar embedding para búsqueda RAG"""
         try:
-            embedding = self.embedding_model.encode(contenido).tolist()
+            embedding = await self.embedding_service.encode(contenido)
             
-            self.supabase.table('reporte_embeddings').insert({
+            self.supabase.table('reporte_embeddings_new').insert({
                 'reporte_id': reporte_id,
                 'paciente_id': str(paciente_id),
                 'contenido': contenido,
@@ -757,21 +913,23 @@ class IAService:
                 Genera el reporte ahora:
                 """
                 
-                # Preparar solicitud a LM Studio
+                # Preparar solicitud a TGI
                 messages = [ChatMessage(role=RolChatEnum.USER, content=prompt)]
-                lm_request = {
+                tgi_request = {
+                    "model": "tgi",
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": request.temperatura,
                     "max_tokens": 2048,
                     "stream": True  # Habilitar streaming
                 }
                 
-                # Realizar solicitud a IA con streaming
+                # Realizar solicitud a TGI con streaming
                 async with httpx.AsyncClient(timeout=180.0) as client:
                     async with client.stream(
                         "POST",
-                        f"{self.lm_studio_url}/chat/completions",
-                        json=lm_request
+                        f"{self.tgi_url}/v1/chat/completions",
+                        json=tgi_request,
+                        headers={"Content-Type": "application/json"}
                     ) as response:
                         response.raise_for_status()
                         
@@ -1154,17 +1312,19 @@ class ChatService(DatabaseService):
             # Agregar mensaje actual
             messages.append(ChatMessage(role=RolChatEnum.USER, content=request.mensaje))
             
-            # Generar respuesta con IA
-            lm_request = LMStudioRequest(
+            # Generar respuesta con IA usando TGI
+            tgi_request = TGIRequest(
                 messages=messages,
                 temperature=0.7,
-                max_tokens=1024
+                max_tokens=1024,
+                stream=False
             )
             
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
-                    f"{self.ia_service.lm_studio_url}/chat/completions",
-                    json=lm_request.model_dump()
+                    f"{self.ia_service.tgi_url}/v1/chat/completions",
+                    json=tgi_request.model_dump(),
+                    headers={"Content-Type": "application/json"}
                 )
                 response.raise_for_status()
             
@@ -1180,7 +1340,7 @@ class ChatService(DatabaseService):
                 contenido=respuesta_ia,
                 metadatos={
                     "tiempo_respuesta": tiempo_respuesta,
-                    "modelo": lm_request.model,
+                    "modelo": tgi_request.model,
                     "especialidad": request.especialidad.value
                 }
             )
@@ -1192,7 +1352,7 @@ class ChatService(DatabaseService):
                 conversacion_id=conversacion_id,
                 confianza=0.8,  # Calcular confianza real en producción
                 tiempo_respuesta=tiempo_respuesta,
-                modelo_usado=lm_request.model
+                modelo_usado=tgi_request.model
             )
             
         except Exception as e:

@@ -299,12 +299,33 @@ class ChatResponse(BaseModel):
 # MODELOS DE IA Y RAG
 # ===================================
 
-class LMStudioRequest(BaseModel):
-    model: str = "medgemma-4b-it-mlx"
+class TGIRequest(BaseModel):
+    model: str = "tgi"
     messages: List[ChatMessage]
     stream: bool = False
     temperature: float = Field(0.7, ge=0.0, le=2.0)
     max_tokens: int = Field(2048, ge=1, le=4096)
+
+# Mantenemos LMStudioRequest para compatibilidad temporal
+class LMStudioRequest(BaseModel):
+    model: str = "tgi"
+    messages: List[ChatMessage]
+    stream: bool = False
+    temperature: float = Field(0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(2048, ge=1, le=4096)
+
+class TGIImageRequest(BaseModel):
+    model: str = "tgi"
+    messages: List[Dict[str, Any]]  # Incluye tanto texto como imágenes
+    stream: bool = False
+    temperature: float = Field(0.7, ge=0.0, le=2.0)
+    max_tokens: int = Field(2048, ge=1, le=4096)
+
+class DicomAnalysisRequest(BaseModel):
+    imagen_base64: str = Field(..., description="Imagen DICOM en formato base64")
+    contexto_clinico: Optional[str] = Field(None, description="Contexto clínico opcional")
+    tipo_estudio: Optional[str] = Field(None, description="Tipo de estudio radiológico")
+    pregunta_especifica: Optional[str] = Field(None, description="Pregunta específica sobre la imagen")
 
 class ReportGenerationRequest(BaseModel):
     paciente_id: UUID

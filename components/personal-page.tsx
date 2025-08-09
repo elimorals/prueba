@@ -147,27 +147,30 @@ export function PersonalPage() {
   return (
     <SidebarInset>
       <div className="flex h-screen flex-col">
-        {/* Header */}
-        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-          <SidebarTrigger className="-ml-1" />
-          <Separator orientation="vertical" className="mr-2 h-4" />
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold text-foreground">Gestión de Personal</h1>
-            <p className="text-sm text-muted-foreground">Administración de empleados y recursos humanos</p>
+        {/* Header - Responsive */}
+        <header className="flex h-16 shrink-0 items-center gap-2 border-b px-2 sm:px-4 safe-area-top">
+          <SidebarTrigger className="-ml-1 tap-target" />
+          <Separator orientation="vertical" className="mr-2 h-4 hidden sm:block" />
+          <div className="flex-1 min-w-0">
+            <h1 className="heading-responsive font-semibold text-foreground truncate">Gestión de Personal</h1>
+            <p className="text-xs sm:text-sm text-muted-foreground hidden sm:block">Administración de empleados y recursos humanos</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
             <ThemeToggle />
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hidden sm:flex">
               <Calendar className="w-4 h-4 mr-2" />
               Hoy: 2 Enero, 2025
+            </Button>
+            <Button variant="outline" size="sm" className="sm:hidden">
+              <Calendar className="w-4 h-4" />
             </Button>
           </div>
         </header>
 
-        {/* Contenido Principal */}
-        <main className="flex-1 overflow-auto p-6">
-          {/* Estadísticas de Personal */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        {/* Contenido Principal - Responsive */}
+        <main className="flex-1 overflow-auto mobile-scroll spacing-responsive safe-area-bottom">
+          {/* Estadísticas de Personal - Grid responsive */}
+          <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mb-6">
             <Card>
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -363,18 +366,21 @@ export function PersonalPage() {
                 </Button>
               </div>
 
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Empleado</TableHead>
-                    <TableHead>Puesto</TableHead>
-                    <TableHead>Departamento</TableHead>
-                    <TableHead>Contacto</TableHead>
-                    <TableHead>Turno</TableHead>
-                    <TableHead>Estado</TableHead>
-                    <TableHead>Acciones</TableHead>
-                  </TableRow>
-                </TableHeader>
+              {/* Tabla responsive - Desktop */}
+              <div className="hidden md:block">
+                <div className="table-responsive">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Empleado</TableHead>
+                        <TableHead>Puesto</TableHead>
+                        <TableHead>Departamento</TableHead>
+                        <TableHead>Contacto</TableHead>
+                        <TableHead>Turno</TableHead>
+                        <TableHead>Estado</TableHead>
+                        <TableHead>Acciones</TableHead>
+                      </TableRow>
+                    </TableHeader>
                 <TableBody>
                   {personalData.map((empleado) => (
                     <TableRow key={empleado.id}>
@@ -505,8 +511,131 @@ export function PersonalPage() {
                       </TableCell>
                     </TableRow>
                   ))}
-                </TableBody>
-              </Table>
+                    </TableBody>
+                  </Table>
+                </div>
+              </div>
+
+              {/* Vista móvil - Cards */}
+              <div className="md:hidden space-y-4">
+                {personalData.map((empleado) => (
+                  <Card key={empleado.id} className="p-4">
+                    <div className="space-y-3">
+                      {/* Header del empleado */}
+                      <div className="flex items-start gap-3">
+                        <Avatar className="w-12 h-12">
+                          <AvatarImage src={`/placeholder.svg?height=48&width=48`} />
+                          <AvatarFallback>
+                            {empleado.nombre
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")
+                              .slice(0, 2)}
+                          </AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium text-foreground truncate">
+                            {empleado.nombre} {empleado.apellido}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">{empleado.puesto}</p>
+                          <p className="text-xs text-muted-foreground">{empleado.id}</p>
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {empleado.estado === "Activo" && (
+                            <Badge className="bg-green-100 dark:bg-green-900/20 text-green-700 dark:text-green-300 text-xs">Activo</Badge>
+                          )}
+                          {empleado.estado === "Vacaciones" && (
+                            <Badge className="bg-blue-100 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 text-xs">Vacaciones</Badge>
+                          )}
+                          {empleado.estado === "Licencia" && (
+                            <Badge className="bg-orange-100 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 text-xs">Licencia</Badge>
+                          )}
+                          {empleado.estado === "Inactivo" && (
+                            <Badge variant="destructive" className="text-xs">Inactivo</Badge>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Información adicional */}
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <p className="text-muted-foreground">Departamento</p>
+                          <Badge variant="outline" className="text-xs">{empleado.departamento}</Badge>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Turno</p>
+                          <p className="text-foreground">{empleado.turno}</p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Teléfono</p>
+                          <p className="text-foreground flex items-center gap-1">
+                            <Phone className="w-3 h-3" />
+                            {empleado.telefono}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-muted-foreground">Email</p>
+                          <p className="text-foreground flex items-center gap-1">
+                            <Mail className="w-3 h-3" />
+                            {empleado.email.length > 15 ? empleado.email.substring(0, 15) + '...' : empleado.email}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Acciones móviles */}
+                      <div className="flex justify-end gap-1 pt-2 border-t">
+                        <Dialog>
+                          <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm" className="tap-target" onClick={() => setSelectedEmployee(empleado)}>
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent className="max-w-[95vw] max-h-[90vh] overflow-y-auto">
+                            <DialogHeader>
+                              <DialogTitle>Detalles del Empleado</DialogTitle>
+                              <DialogDescription>Información completa del empleado seleccionado</DialogDescription>
+                            </DialogHeader>
+                            {selectedEmployee && (
+                              <div className="grid gap-6">
+                                <div className="space-y-4">
+                                  <div>
+                                    <h4 className="font-medium mb-2 text-foreground">Información Personal</h4>
+                                    <div className="space-y-2 text-sm">
+                                      <p><strong>Nombre:</strong> {selectedEmployee.nombre} {selectedEmployee.apellido}</p>
+                                      <p><strong>ID:</strong> {selectedEmployee.id}</p>
+                                      <p><strong>Cédula:</strong> {selectedEmployee.cedula}</p>
+                                      <p><strong>Dirección:</strong> {selectedEmployee.direccion}</p>
+                                      <p><strong>Contacto Emergencia:</strong> {selectedEmployee.emergenciaContacto}</p>
+                                    </div>
+                                  </div>
+                                  <div>
+                                    <h4 className="font-medium mb-2 text-foreground">Información Laboral</h4>
+                                    <div className="space-y-2 text-sm">
+                                      <p><strong>Puesto:</strong> {selectedEmployee.puesto}</p>
+                                      <p><strong>Departamento:</strong> {selectedEmployee.departamento}</p>
+                                      <p><strong>Especialidad:</strong> {selectedEmployee.especialidad}</p>
+                                      <p><strong>Turno:</strong> {selectedEmployee.turno}</p>
+                                      <p><strong>Fecha Ingreso:</strong> {selectedEmployee.fechaIngreso}</p>
+                                      <p><strong>Salario:</strong> ${selectedEmployee.salario.toLocaleString()}</p>
+                                      <p><strong>Última Actividad:</strong> {selectedEmployee.ultimaActividad}</p>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </DialogContent>
+                        </Dialog>
+                        <Button variant="ghost" size="sm" className="tap-target">
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button variant="ghost" size="sm" className="tap-target">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </main>

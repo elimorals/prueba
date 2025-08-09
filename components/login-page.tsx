@@ -29,62 +29,74 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-4">
-      {/* Toggle de tema en la esquina superior derecha */}
-      <div className="absolute top-4 right-4">
+    <div className="min-h-screen bg-gradient-to-br from-teal-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 flex items-center justify-center p-2 sm:p-4 safe-area-top safe-area-bottom">
+      {/* Toggle de tema - Responsive */}
+      <div className="absolute top-2 right-2 sm:top-4 sm:right-4 safe-area-top safe-area-right">
         <ThemeToggle />
       </div>
 
-      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
-        {/* Panel Izquierdo - Información */}
-        <div className="space-y-8 text-center lg:text-left">
-          <div className="flex items-center justify-center lg:justify-start gap-4">
-            <div className="w-16 h-16 bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl flex items-center justify-center">
-              <Stethoscope className="w-8 h-8 text-white" />
+      <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 items-center">
+        {/* Panel Izquierdo - Información (Oculto en móvil muy pequeño) */}
+        <div className="hidden sm:block space-y-6 lg:space-y-8 text-center lg:text-left">
+          <div className="flex items-center justify-center lg:justify-start gap-3 lg:gap-4">
+            <div className="w-12 h-12 lg:w-16 lg:h-16 bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl flex items-center justify-center">
+              <Stethoscope className="w-6 h-6 lg:w-8 lg:h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-4xl font-bold text-gray-900 dark:text-white">Radix IA</h1>
-              <p className="text-xl text-teal-600 dark:text-teal-400 font-medium">Inteligencia Médica Avanzada</p>
+              <h1 className="text-2xl lg:text-4xl font-bold text-gray-900 dark:text-white">RADIX</h1>
+              <p className="text-sm lg:text-xl text-teal-600 dark:text-teal-400 font-medium">Inteligencia Médica Avanzada</p>
             </div>
           </div>
 
-          <div className="space-y-6">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Revoluciona tu práctica médica con IA</h2>
-            <p className="text-lg text-gray-600 dark:text-gray-300">
+          <div className="space-y-4 lg:space-y-6">
+            <h2 className="text-xl lg:text-3xl font-bold text-gray-900 dark:text-white">Revoluciona tu práctica médica con IA</h2>
+            <p className="text-sm lg:text-lg text-gray-600 dark:text-gray-300">
               Plataforma especializada en radiología con análisis inteligente, reportes automáticos y diagnósticos
               asistidos por inteligencia artificial.
             </p>
           </div>
 
           {/* Características */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            <div className="flex flex-col items-center p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
-              <Brain className="w-8 h-8 text-teal-600 dark:text-teal-400 mb-2" />
-              <span className="text-sm font-medium text-gray-900 dark:text-white">IA Especializada</span>
+          <div className="grid grid-cols-3 gap-3 lg:gap-4">
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
+              <Brain className="w-6 h-6 lg:w-8 lg:h-8 text-teal-600 dark:text-teal-400 mb-1 lg:mb-2" />
+              <span className="text-xs lg:text-sm font-medium text-gray-900 dark:text-white">IA Especializada</span>
             </div>
-            <div className="flex flex-col items-center p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
-              <Activity className="w-8 h-8 text-blue-600 dark:text-blue-400 mb-2" />
-              <span className="text-sm font-medium text-gray-900 dark:text-white">Análisis DICOM</span>
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
+              <Activity className="w-6 h-6 lg:w-8 lg:h-8 text-blue-600 dark:text-blue-400 mb-1 lg:mb-2" />
+              <span className="text-xs lg:text-sm font-medium text-gray-900 dark:text-white">Análisis DICOM</span>
             </div>
-            <div className="flex flex-col items-center p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
-              <Shield className="w-8 h-8 text-green-600 dark:text-green-400 mb-2" />
-              <span className="text-sm font-medium text-gray-900 dark:text-white">Seguro y Confiable</span>
+            <div className="flex flex-col items-center p-3 lg:p-4 bg-white/50 dark:bg-gray-800/50 rounded-lg backdrop-blur-sm">
+              <Shield className="w-6 h-6 lg:w-8 lg:h-8 text-green-600 dark:text-green-400 mb-1 lg:mb-2" />
+              <span className="text-xs lg:text-sm font-medium text-gray-900 dark:text-white">Seguro y Confiable</span>
             </div>
           </div>
         </div>
 
         {/* Panel Derecho - Formulario de Login */}
         <Card className="w-full max-w-md mx-auto bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm border-0 shadow-2xl">
-          <CardHeader className="space-y-1 text-center">
-            <CardTitle className="text-2xl font-bold text-gray-900 dark:text-white">Iniciar Sesión</CardTitle>
-            <CardDescription className="text-gray-600 dark:text-gray-300">
-              Accede a tu cuenta de Radix IA
+          {/* Header móvil solo para pantallas pequeñas */}
+          <div className="sm:hidden p-4 text-center border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center justify-center gap-3 mb-2">
+              <div className="w-10 h-10 bg-gradient-to-r from-teal-500 to-teal-600 rounded-xl flex items-center justify-center">
+                <Stethoscope className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">RADIX</h1>
+                <p className="text-xs text-teal-600 dark:text-teal-400">IA Médica</p>
+              </div>
+            </div>
+          </div>
+          <CardHeader className="space-y-1 text-center p-4 sm:p-6">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Iniciar Sesión</CardTitle>
+            <CardDescription className="text-sm sm:text-base text-gray-600 dark:text-gray-300">
+              Accede a tu cuenta de RADIX
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <form onSubmit={handleLogin} className="space-y-4">
+          <CardContent className="p-4 sm:p-6">
+            <form onSubmit={handleLogin} className="space-y-4 sm:space-y-6">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-900 dark:text-white">
+                <Label htmlFor="email" className="text-sm font-medium text-gray-900 dark:text-white">
                   Correo Electrónico
                 </Label>
                 <div className="relative">
@@ -95,14 +107,15 @@ export function LoginPage() {
                     placeholder="doctor@hospital.com"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    className="pl-10 h-11 sm:h-10 text-base bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     required
+                    autoComplete="email"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-gray-900 dark:text-white">
+                <Label htmlFor="password" className="text-sm font-medium text-gray-900 dark:text-white">
                   Contraseña
                 </Label>
                 <div className="relative">
@@ -113,14 +126,15 @@ export function LoginPage() {
                     placeholder="••••••••"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 pr-10 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
+                    className="pl-10 pr-12 h-11 sm:h-10 text-base bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white"
                     required
+                    autoComplete="current-password"
                   />
                   <Button
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent tap-target"
                     onClick={() => setShowPassword(!showPassword)}
                   >
                     {showPassword ? (
@@ -132,7 +146,11 @@ export function LoginPage() {
                 </div>
               </div>
 
-              <Button type="submit" className="w-full bg-teal-600 hover:bg-teal-700 text-white" disabled={isLoading}>
+              <Button 
+                type="submit" 
+                className="w-full h-11 sm:h-10 text-base bg-teal-600 hover:bg-teal-700 text-white tap-target" 
+                disabled={isLoading}
+              >
                 {isLoading ? "Iniciando sesión..." : "Iniciar Sesión"}
               </Button>
             </form>

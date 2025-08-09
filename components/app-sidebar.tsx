@@ -85,15 +85,15 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-gray-200">
       <SidebarHeader className="p-4">
-        <div className="flex items-center gap-3">
+        <a href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer">
           <div className="w-8 h-8 bg-gradient-to-r from-teal-500 to-teal-600 rounded-lg flex items-center justify-center">
             <Stethoscope className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h2 className="text-lg font-bold text-foreground">Radix IA</h2>
+            <h2 className="text-lg font-bold text-foreground">RADIX</h2>
             <p className="text-xs text-muted-foreground">Inteligencia Médica</p>
           </div>
-        </div>
+        </a>
       </SidebarHeader>
 
       <SidebarContent>
