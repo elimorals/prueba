@@ -287,6 +287,7 @@ class ChatRequest(BaseModel):
     conversacion_id: Optional[UUID] = None
     archivos_adjuntos: List[str] = Field(default_factory=list)
     contexto_adicional: Optional[str] = None
+    idioma_usuario: Optional[str] = Field("es", description="Idioma del usuario (es, en, fr, etc.)")
 
 class ChatResponse(BaseModel):
     respuesta: str
@@ -384,29 +385,153 @@ class EstadisticasReportes(BaseModel):
 # MODELOS DE PERSONAL MÉDICO
 # ===================================
 
+class EstadoPersonalEnum(str, Enum):
+    ACTIVO = "Activo"
+    INACTIVO = "Inactivo"
+    VACACIONES = "Vacaciones"
+    LICENCIA = "Licencia"
+
+class TurnoEnum(str, Enum):
+    MATUTINO = "Matutino"
+    VESPERTINO = "Vespertino"
+    NOCTURNO = "Nocturno"
+    ROTATIVO = "Rotativo"
+
+class DepartamentoEnum(str, Enum):
+    RADIOLOGIA = "Radiología"
+    ENFERMERIA = "Enfermería"
+    ADMINISTRACION = "Administración"
+    LABORATORIO = "Laboratorio"
+    CARDIOLOGIA = "Cardiología"
+    NEUROLOGIA = "Neurología"
+    GINECOLOGIA = "Ginecología"
+
 class PersonalMedicoBase(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100)
     apellido: str = Field(..., min_length=1, max_length=100)
-    especialidad: str = Field(..., min_length=1, max_length=100)
-    titulo: Optional[str] = Field(None, max_length=100)
+    puesto: str = Field(..., min_length=1, max_length=100)
+    departamento: DepartamentoEnum
     email: EmailStr
-    telefono: Optional[str] = Field(None, max_length=20)
-    licencia_medica: Optional[str] = Field(None, max_length=50)
-    estado: str = Field("Activo", pattern="^(Activo|Inactivo|Licencia)$")
+    telefono: str = Field(..., max_length=20)
     fecha_ingreso: date
-    departamento: Optional[str] = Field(None, max_length=100)
-    turno: Optional[str] = Field(None, pattern="^(Mañana|Tarde|Noche|Rotativo)$")
+    salario: float = Field(..., gt=0)
+    estado: EstadoPersonalEnum = EstadoPersonalEnum.ACTIVO
+    turno: TurnoEnum
+    especialidad: str = Field(..., min_length=1, max_length=100)
+    cedula: str = Field(..., min_length=1, max_length=50)
+    direccion: str = Field(..., min_length=1, max_length=200)
+    contacto_emergencia: str = Field(..., min_length=1, max_length=200)
 
 class PersonalMedicoCreate(PersonalMedicoBase):
     pass
 
+class PersonalMedicoUpdate(BaseModel):
+    nombre: Optional[str] = Field(None, min_length=1, max_length=100)
+    apellido: Optional[str] = Field(None, min_length=1, max_length=100)
+    puesto: Optional[str] = Field(None, min_length=1, max_length=100)
+    departamento: Optional[DepartamentoEnum] = None
+    email: Optional[EmailStr] = None
+    telefono: Optional[str] = Field(None, max_length=20)
+    fecha_ingreso: Optional[date] = None
+    salario: Optional[float] = Field(None, gt=0)
+    estado: Optional[EstadoPersonalEnum] = None
+    turno: Optional[TurnoEnum] = None
+    especialidad: Optional[str] = Field(None, min_length=1, max_length=100)
+    cedula: Optional[str] = Field(None, min_length=1, max_length=50)
+    direccion: Optional[str] = Field(None, min_length=1, max_length=200)
+    contacto_emergencia: Optional[str] = Field(None, min_length=1, max_length=200)
+
 class PersonalMedico(PersonalMedicoBase):
     id: UUID
     numero_empleado: str
+    ultima_actividad: Optional[datetime] = None
     created_at: datetime
     updated_at: datetime
     
     model_config = {"from_attributes": True}
+
+class EstadisticasPersonal(BaseModel):
+    total_empleados: int
+    empleados_activos: int
+    empleados_vacaciones: int
+    empleados_licencia: int
+    empleados_inactivos: int
+    total_departamentos: int
+    nomina_mensual: float
+    departamentos: Dict[str, int] = Field(default_factory=dict)
+
+# ===================================
+# MODELOS DE ÓRDENES DE COMPRA
+# ===================================
+
+class EstadoOrdenEnum(str, Enum):
+    PENDIENTE = "Pendiente"
+    APROBADA = "Aprobada"
+    ENVIADA = "Enviada"
+    RECIBIDA = "Recibida"
+    CANCELADA = "Cancelada"
+
+class OrdenDetalleBase(BaseModel):
+    item_id: UUID
+    cantidad: int = Field(..., gt=0)
+    precio_unitario: float = Field(..., gt=0)
+    
+class OrdenDetalleCreate(OrdenDetalleBase):
+    pass
+
+class OrdenDetalle(OrdenDetalleBase):
+    id: UUID
+    orden_id: UUID
+    subtotal: float
+    recibido: int = 0
+    fecha_recepcion: Optional[date] = None
+    
+    model_config = {"from_attributes": True}
+
+class OrdenCompraBase(BaseModel):
+    proveedor: str = Field(..., min_length=1, max_length=200)
+    fecha_orden: date
+    fecha_entrega_esperada: Optional[date] = None
+    estado: EstadoOrdenEnum = EstadoOrdenEnum.PENDIENTE
+    solicitado_por: str = Field(..., min_length=1, max_length=100)
+    aprobado_por: Optional[str] = Field(None, max_length=100)
+    observaciones: Optional[str] = None
+    detalles: List[OrdenDetalleCreate] = Field(default_factory=list)
+
+class OrdenCompraCreate(OrdenCompraBase):
+    pass
+
+class OrdenCompraUpdate(BaseModel):
+    proveedor: Optional[str] = Field(None, min_length=1, max_length=200)
+    fecha_orden: Optional[date] = None
+    fecha_entrega_esperada: Optional[date] = None
+    estado: Optional[EstadoOrdenEnum] = None
+    aprobado_por: Optional[str] = Field(None, max_length=100)
+    observaciones: Optional[str] = None
+    detalles: Optional[List[OrdenDetalleCreate]] = None
+
+class OrdenCompra(OrdenCompraBase):
+    id: UUID
+    numero_orden: str
+    total_orden: float
+    iva: Optional[float] = None
+    total_con_iva: Optional[float] = None
+    created_at: datetime
+    updated_at: datetime
+    detalles: List[OrdenDetalle] = Field(default_factory=list)
+    
+    model_config = {"from_attributes": True}
+
+class EstadisticasOrdenes(BaseModel):
+    total_ordenes: int
+    pendientes: int
+    aprobadas: int
+    enviadas: int
+    recibidas: int
+    canceladas: int
+    valor_total_pendientes: float
+    valor_total_aprobadas: float
+    valor_total_general: float
 
 # ===================================
 # MODELOS DE ARCHIVOS

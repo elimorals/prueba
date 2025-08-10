@@ -15,6 +15,7 @@ from math import ceil
 
 import httpx
 from supabase import Client
+from context_manager import ContextManager, get_context_manager
 
 from models import (
     # Pacientes
@@ -29,6 +30,12 @@ from models import (
     ChatRequest, ChatResponse, ChatMessage,
     # RAG
     RAGSearchRequest, RAGSearchResult,
+    # Órdenes de Compra
+    OrdenCompra, OrdenCompraCreate, OrdenCompraUpdate, OrdenDetalle,
+    OrdenDetalleCreate, EstadisticasOrdenes, EstadoOrdenEnum,
+    # Personal Médico
+    PersonalMedico, PersonalMedicoCreate, PersonalMedicoUpdate, EstadisticasPersonal,
+    EstadoPersonalEnum, TurnoEnum, DepartamentoEnum,
     # Otros
     LMStudioRequest, TGIRequest, TGIImageRequest, DicomAnalysisRequest,
     PaginatedResponse, BaseResponse, ArchivoSubida,
@@ -1240,91 +1247,125 @@ class ReporteService(DatabaseService):
 # ===================================
 
 class ChatService(DatabaseService):
-    """Servicio para chat IA médico con especialidades"""
+    """Servicio para chat IA médico con especialidades y gestión de contexto avanzada"""
     
     def __init__(self, supabase: Client, ia_service: IAService):
         super().__init__(supabase)
         self.ia_service = ia_service
+        self.context_manager = get_context_manager(supabase)
     
-    async def procesar_mensaje_chat(self, request: ChatRequest) -> ChatResponse:
-        """Procesar mensaje del chat y generar respuesta con IA"""
+    async def procesar_mensaje_chat(self, request: ChatRequest, user_id: str = "default_user") -> ChatResponse:
+        """Procesar mensaje del chat y generar respuesta con IA usando gestión avanzada de contexto"""
         start_time = time.time()
+        conversacion_id = None
         
         try:
+            print(f"🔍 Procesando mensaje de chat para usuario: {user_id}")
+            print(f"📝 Mensaje: {request.mensaje}")
+            print(f"🏥 Especialidad: {request.especialidad}")
+            
             # Obtener o crear conversación
             conversacion_id = request.conversacion_id
             if not conversacion_id:
+                print(f"🆕 Creando nueva conversación...")
                 # Crear nueva conversación
                 conversacion_data = ConversacionChatCreate(
                     titulo=f"Consulta {request.especialidad.value}",
                     especialidad=request.especialidad,
-                    usuario="Usuario"  # En producción, obtener del token JWT
+                    usuario=user_id
                 )
                 
                 conv_result = await self.crear_conversacion(conversacion_data)
                 if not conv_result.success:
-                    raise Exception("No se pudo crear la conversación")
+                    print(f"❌ Error creando conversación: {conv_result.message}")
+                    raise Exception(f"No se pudo crear la conversación: {conv_result.message}")
                 
                 conversacion_id = UUID(conv_result.data['id'])
+                print(f"✅ Conversación creada con ID: {conversacion_id}")
+            else:
+                print(f"📋 Usando conversación existente: {conversacion_id}")
             
-            # Guardar mensaje del usuario
-            mensaje_usuario = MensajeChatCreate(
-                rol=RolChatEnum.USER,
-                contenido=request.mensaje,
-                archivos_adjuntos=request.archivos_adjuntos
+            # Crear mensaje del usuario usando context manager
+            mensaje_usuario = ChatMessage(
+                role=RolChatEnum.USER,
+                content=request.mensaje
             )
             
-            await self.guardar_mensaje(conversacion_id, mensaje_usuario)
+            print(f"💬 Agregando mensaje al contexto...")
+            # Agregar mensaje al contexto usando el context manager
+            context = await self.context_manager.add_message_to_context(
+                conversacion_id, 
+                mensaje_usuario, 
+                user_id
+            )
             
-            # Obtener historial de conversación para contexto
-            historial = await self.obtener_historial_conversacion(conversacion_id)
+            # Determinar si incluir contexto RAG
+            include_rag = any(keyword in request.mensaje.lower() 
+                            for keyword in ['similar', 'caso', 'antecedente', 'historial', 'previo'])
             
-            # Construir prompt especializado según la especialidad
-            prompt_sistema = self._generar_prompt_especialidad(request.especialidad)
+            print(f"🧠 Obteniendo contexto para IA (RAG: {include_rag})...")
+            # Obtener contexto optimizado para IA
+            messages = await self.context_manager.get_context_for_ai(
+                conversacion_id,
+                include_rag=include_rag,
+                rag_query=request.mensaje if include_rag else None
+            )
             
-            # Obtener contexto RAG si es relevante
-            contexto_rag = ""
-            if any(keyword in request.mensaje.lower() for keyword in ['similar', 'caso', 'antecedente', 'historial']):
-                rag_request = RAGSearchRequest(
-                    query=request.mensaje,
-                    limite_resultados=2,
-                    umbral_similitud=0.7
-                )
-                rag_results = await self.ia_service.buscar_rag(rag_request)
-                
-                if rag_results:
-                    contexto_rag = "\\n\\nCONTEXTO DE CASOS RELEVANTES:\\n"
-                    for result in rag_results:
-                        contexto_rag += f"- {result.contenido[:150]}...\\n"
-            
-            # Preparar mensajes para IA
-            messages = [
-                ChatMessage(role=RolChatEnum.SYSTEM, content=prompt_sistema + contexto_rag),
-            ]
-            
-            # Agregar historial reciente (últimos 5 mensajes)
-            for msg in historial[-5:]:
-                messages.append(ChatMessage(
-                    role=RolChatEnum(msg['rol']),
-                    content=msg['contenido']
-                ))
-            
-            # Agregar mensaje actual
-            messages.append(ChatMessage(role=RolChatEnum.USER, content=request.mensaje))
-            
+            print(f"🤖 Generando respuesta con IA...")
             # Generar respuesta con IA usando TGI
-            tgi_request = TGIRequest(
-                messages=messages,
-                temperature=0.7,
-                max_tokens=1024,
-                stream=False
-            )
+            # Convertir mensajes al formato que espera la API
+            formatted_messages = []
+            for msg in messages:
+                formatted_messages.append({
+                    "role": msg.role.value,
+                    "content": msg.content
+                })
+            
+            # Agregar instrucción específica para español si no hay system prompt
+            if not formatted_messages or formatted_messages[0]["role"] != "system":
+                # Determinar el idioma del usuario
+                idioma_usuario = getattr(request, 'idioma_usuario', 'es') or 'es'
+                
+                # Crear prompt de sistema con instrucciones de idioma
+                idioma_instrucciones = {
+                    'es': "Eres un asistente médico IA. Responde SIEMPRE en español. Sé profesional y empático.",
+                    'en': "You are a medical AI assistant. Always respond in English. Be professional and empathetic.",
+                    'fr': "Vous êtes un assistant médical IA. Répondez TOUJOURS en français. Soyez professionnel et empathique.",
+                    'de': "Sie sind ein medizinischer KI-Assistent. Antworten Sie IMMER auf Deutsch. Seien Sie professionell und einfühlsam.",
+                    'pt': "Você é um assistente médico de IA. Sempre responda em português. Seja profissional e empático.",
+                    'it': "Sei un assistente medico IA. Rispondi SEMPRE in italiano. Sii professionale ed empatico."
+                }
+                
+                system_prompt = idioma_instrucciones.get(idioma_usuario, idioma_instrucciones['es'])
+                
+                formatted_messages.insert(0, {
+                    "role": "system",
+                    "content": system_prompt
+                })
+            
+            print(f"📝 Mensajes formateados para API: {len(formatted_messages)} mensajes")
+            
+            tgi_request = {
+                "model": "tgi",
+                "messages": formatted_messages,
+                "temperature": 0.7,
+                "max_tokens": 1024,
+                "stream": False
+            }
+            
+            print(f"📤 Enviando request a TGI: {self.ia_service.tgi_url}")
+            
+            # API key para Hugging Face (en producción, usar variable de entorno)
+            api_key = os.environ.get("HF_API_KEY", "hf_XXXXX")
             
             async with httpx.AsyncClient(timeout=120.0) as client:
                 response = await client.post(
                     f"{self.ia_service.tgi_url}/v1/chat/completions",
-                    json=tgi_request.model_dump(),
-                    headers={"Content-Type": "application/json"}
+                    json=tgi_request,
+                    headers={
+                        "Content-Type": "application/json",
+                        "Authorization": f"Bearer {api_key}"
+                    }
                 )
                 response.raise_for_status()
             
@@ -1334,33 +1375,59 @@ class ChatService(DatabaseService):
             # Calcular tiempo de respuesta
             tiempo_respuesta = time.time() - start_time
             
-            # Guardar respuesta de IA
-            mensaje_ia = MensajeChatCreate(
-                rol=RolChatEnum.ASSISTANT,
-                contenido=respuesta_ia,
-                metadatos={
-                    "tiempo_respuesta": tiempo_respuesta,
-                    "modelo": tgi_request.model,
-                    "especialidad": request.especialidad.value
-                }
+            print(f"💬 Agregando respuesta de IA al contexto...")
+            # Agregar respuesta de IA al contexto
+            mensaje_ia = ChatMessage(
+                role=RolChatEnum.ASSISTANT,
+                content=respuesta_ia
             )
             
-            await self.guardar_mensaje(conversacion_id, mensaje_ia)
+            await self.context_manager.add_message_to_context(
+                conversacion_id, 
+                mensaje_ia, 
+                user_id
+            )
+            
+            print(f"✅ Respuesta generada exitosamente en {tiempo_respuesta:.2f}s")
             
             return ChatResponse(
                 respuesta=respuesta_ia,
                 conversacion_id=conversacion_id,
                 confianza=0.8,  # Calcular confianza real en producción
                 tiempo_respuesta=tiempo_respuesta,
-                modelo_usado=tgi_request.model
+                modelo_usado="tgi"
             )
             
         except Exception as e:
-            print(f"Error en chat IA: {e}")
+            tiempo_respuesta = time.time() - start_time
+            print(f"❌ Error en chat IA: {e}")
+            print(f"📋 Tipo de error: {type(e).__name__}")
+            print(f"🔍 Detalles del error: {str(e)}")
+            
+            # Proporcionar mensaje de error más informativo
+            error_message = "Lo siento, ha ocurrido un error. Por favor, intenta de nuevo."
+            if "permission denied" in str(e).lower():
+                error_message = "Error de permisos en la base de datos. Contacta al administrador."
+            elif "no se pudo crear la conversación" in str(e).lower():
+                error_message = "Error al crear la conversación. Verifica la configuración de la base de datos."
+            elif "timeout" in str(e).lower():
+                error_message = "La respuesta tardó demasiado. Por favor, intenta de nuevo."
+            elif "422" in str(e) or "unprocessable entity" in str(e).lower():
+                error_message = "Error en el formato de la solicitud a la IA. Verificando configuración..."
+                print(f"🔧 Error 422: Verificar formato de mensajes enviados a TGI")
+            elif "401" in str(e) or "unauthorized" in str(e).lower():
+                error_message = "Error de autenticación con el servicio de IA. Verificando credenciales..."
+                print(f"🔧 Error 401: Verificar HF_API_KEY en variables de entorno")
+            elif "404" in str(e) or "not found" in str(e).lower():
+                error_message = "Servicio de IA no disponible. Verificando endpoint..."
+                print(f"🔧 Error 404: Verificar TGI_URL en variables de entorno")
+            
             return ChatResponse(
-                respuesta="Lo siento, ha ocurrido un error. Por favor, intenta de nuevo.",
+                respuesta=error_message,
                 conversacion_id=conversacion_id or uuid4(),
-                tiempo_respuesta=time.time() - start_time
+                confianza=0.0,
+                tiempo_respuesta=tiempo_respuesta,
+                modelo_usado=None
             )
     
     def _generar_prompt_especialidad(self, especialidad: EspecialidadEnum) -> str:
@@ -1413,18 +1480,62 @@ class ChatService(DatabaseService):
     async def crear_conversacion(self, conversacion_data: ConversacionChatCreate) -> BaseResponse:
         """Crear nueva conversación de chat"""
         try:
-            result = self.supabase.table('conversaciones_chat').insert(
-                conversacion_data.model_dump()
-            ).execute()
+            print(f"🔍 Intentando crear conversación: {conversacion_data.model_dump()}")
+            
+            # Verificar que la tabla existe y es accesible
+            try:
+                test_query = self.supabase.table('conversaciones_chat').select('count').limit(1).execute()
+                print(f"✅ Tabla conversaciones_chat accesible")
+            except Exception as table_error:
+                print(f"❌ Error accediendo a tabla conversaciones_chat: {table_error}")
+                return BaseResponse(
+                    success=False,
+                    message=f"Error de base de datos: No se puede acceder a la tabla conversaciones_chat - {str(table_error)}",
+                    data=None
+                )
+            
+            # Preparar datos para inserción
+            conversacion_dict = conversacion_data.model_dump()
+            print(f"📝 Datos preparados: {conversacion_dict}")
+            
+            # Insertar en base de datos
+            result = self.supabase.table('conversaciones_chat').insert(conversacion_dict).execute()
+            
+            if not result.data:
+                print(f"❌ No se recibieron datos de la inserción")
+                return BaseResponse(
+                    success=False,
+                    message="Error: No se pudo crear la conversación - respuesta vacía de la base de datos",
+                    data=None
+                )
+            
+            print(f"✅ Conversación creada exitosamente: {result.data[0]}")
             
             return BaseResponse(
                 success=True,
                 message="Conversación creada exitosamente",
-                data=result.data[0] if result.data else None
+                data=result.data[0]
             )
             
         except Exception as e:
-            return BaseResponse(**self.handle_db_error(e))
+            print(f"❌ Error creando conversación: {e}")
+            print(f"📋 Tipo de error: {type(e).__name__}")
+            print(f"🔍 Detalles del error: {str(e)}")
+            
+            # Proporcionar información más específica del error
+            error_message = f"Error de base de datos: {str(e)}"
+            if "permission denied" in str(e).lower():
+                error_message = "Error de permisos: Verificar configuración de Supabase y políticas RLS"
+            elif "relation" in str(e).lower() and "does not exist" in str(e).lower():
+                error_message = "Error: La tabla conversaciones_chat no existe. Ejecutar database_setup.sql"
+            elif "duplicate key" in str(e).lower():
+                error_message = "Error: Ya existe una conversación con esos datos"
+            
+            return BaseResponse(
+                success=False,
+                message=error_message,
+                data=None
+            )
     
     async def guardar_mensaje(self, conversacion_id: UUID, 
                              mensaje_data: MensajeChatCreate) -> BaseResponse:
@@ -1490,3 +1601,600 @@ class ChatService(DatabaseService):
         except Exception as e:
             print(f"Error obteniendo historial: {e}")
             return []
+    
+    async def obtener_sesiones_activas_usuario(self, user_id: str) -> Dict[str, Any]:
+        """Obtener todas las sesiones activas de un usuario"""
+        try:
+            sesiones = await self.context_manager.get_user_active_sessions(user_id)
+            return {
+                "success": True,
+                "data": {
+                    "user_id": user_id,
+                    "active_sessions": sesiones,
+                    "total_sessions": len(sesiones)
+                }
+            }
+        except Exception as e:
+            print(f"Error obteniendo sesiones activas: {e}")
+            return {
+                "success": False,
+                "message": f"Error obteniendo sesiones activas: {str(e)}",
+                "data": {"active_sessions": [], "total_sessions": 0}
+            }
+    
+    async def obtener_estadisticas_contexto(self) -> Dict[str, Any]:
+        """Obtener estadísticas del sistema de contexto"""
+        try:
+            cache_stats = {
+                "conversations_in_cache": len(self.context_manager.cache.cache),
+                "max_cache_size": self.context_manager.cache.max_size,
+                "cache_utilization": len(self.context_manager.cache.cache) / self.context_manager.cache.max_size,
+                "active_users": len(self.context_manager.cache.user_conversations)
+            }
+            
+            return {
+                "success": True,
+                "data": cache_stats
+            }
+        except Exception as e:
+            print(f"Error obteniendo estadísticas de contexto: {e}")
+            return {
+                "success": False,
+                "message": f"Error obteniendo estadísticas: {str(e)}",
+                "data": {}
+            }
+
+# ===================================
+# SERVICIO DE ÓRDENES DE COMPRA
+# ===================================
+
+class OrdenCompraService:
+    """Servicio para gestión de órdenes de compra"""
+    
+    def __init__(self, supabase: Client):
+        self.supabase = supabase
+    
+    def handle_db_error(self, error) -> Dict[str, Any]:
+        """Manejo estándar de errores de base de datos"""
+        error_msg = str(error).lower()
+        
+        if "duplicate key" in error_msg:
+            return {"success": False, "message": "Ya existe un registro con esos datos"}
+        elif "foreign key" in error_msg:
+            return {"success": False, "message": "Referencia inválida a otro registro"}
+        elif "not found" in error_msg:
+            return {"success": False, "message": "Registro no encontrado"}
+        else:
+            return {"success": False, "message": f"Error de base de datos: {str(error)}"}
+    
+    def generar_numero_orden(self) -> str:
+        """Generar número de orden secuencial"""
+        try:
+            result = self.supabase.table('ordenes_compra').select('numero_orden').order(
+                'numero_orden', desc=True
+            ).limit(1).execute()
+            
+            if result.data:
+                ultimo_numero = result.data[0]['numero_orden']
+                # Extraer número del formato OC-XXX
+                numero = int(ultimo_numero.split('-')[1]) + 1
+            else:
+                numero = 1
+            
+            return f"OC-{numero:03d}"
+        except:
+            return f"OC-{int(datetime.now().timestamp()) % 1000:03d}"
+    
+    async def crear_orden(self, orden_data: OrdenCompraCreate) -> BaseResponse:
+        """Crear nueva orden de compra"""
+        try:
+            # Calcular totales
+            total_orden = sum(detalle.cantidad * detalle.precio_unitario for detalle in orden_data.detalles)
+            iva = total_orden * 0.16  # IVA del 16%
+            total_con_iva = total_orden + iva
+            
+            # Preparar datos de la orden
+            orden_dict = orden_data.model_dump(exclude={'detalles'})
+            orden_dict.update({
+                'numero_orden': self.generar_numero_orden(),
+                'total_orden': total_orden,
+                'iva': iva,
+                'total_con_iva': total_con_iva
+            })
+            
+            # Insertar orden
+            result = self.supabase.table('ordenes_compra').insert(orden_dict).execute()
+            
+            if not result.data:
+                raise Exception("Error al crear la orden")
+            
+            orden_id = result.data[0]['id']
+            
+            # Insertar detalles
+            for detalle in orden_data.detalles:
+                detalle_dict = detalle.model_dump()
+                detalle_dict.update({
+                    'orden_id': orden_id,
+                    'subtotal': detalle.cantidad * detalle.precio_unitario
+                })
+                
+                self.supabase.table('orden_detalles').insert(detalle_dict).execute()
+            
+            return BaseResponse(
+                success=True,
+                message="Orden de compra creada exitosamente",
+                data=result.data[0]
+            )
+            
+        except Exception as e:
+            return BaseResponse(**self.handle_db_error(e))
+    
+    async def obtener_ordenes(self, page: int = 1, limit: int = 10, 
+                             search: Optional[str] = None, 
+                             estado: Optional[str] = None,
+                             proveedor: Optional[str] = None) -> PaginatedResponse:
+        """Obtener lista paginada de órdenes con filtros"""
+        try:
+            offset = (page - 1) * limit
+            
+            # Construir query base
+            query = self.supabase.table('ordenes_compra').select('*', count='exact')
+            
+            # Aplicar filtros
+            if search:
+                query = query.or_(f'numero_orden.ilike.%{search}%,proveedor.ilike.%{search}%,solicitado_por.ilike.%{search}%')
+            
+            if estado and estado != "todos":
+                if estado == "pendiente":
+                    query = query.eq('estado', 'Pendiente')
+                elif estado == "aprobada":
+                    query = query.eq('estado', 'Aprobada')
+                elif estado == "enviada":
+                    query = query.eq('estado', 'Enviada')
+                elif estado == "recibida":
+                    query = query.eq('estado', 'Recibida')
+                elif estado == "cancelada":
+                    query = query.eq('estado', 'Cancelada')
+            
+            if proveedor and proveedor != "todos":
+                query = query.ilike('proveedor', f'%{proveedor}%')
+            
+            # Ejecutar query con paginación
+            query = query.range(offset, offset + limit - 1).order('created_at', desc=True)
+            result = query.execute()
+            
+            total = result.count if result.count else 0
+            pages = ceil(total / limit) if total > 0 else 1
+            
+            return PaginatedResponse(
+                items=result.data or [],
+                total=total,
+                page=page,
+                limit=limit,
+                pages=pages
+            )
+            
+        except Exception as e:
+            return PaginatedResponse(
+                items=[],
+                total=0,
+                page=page,
+                limit=limit,
+                pages=1
+            )
+    
+    async def obtener_orden(self, orden_id: UUID) -> BaseResponse:
+        """Obtener una orden específica con sus detalles"""
+        try:
+            # Obtener orden
+            result = self.supabase.table('ordenes_compra').select('*').eq(
+                'id', str(orden_id)
+            ).execute()
+            
+            if not result.data:
+                return BaseResponse(success=False, message="Orden no encontrada")
+            
+            orden = result.data[0]
+            
+            # Obtener detalles de la orden
+            detalles_result = self.supabase.table('orden_detalles').select(
+                '*, inventarios(nombre_item, unidad_medida)'
+            ).eq('orden_id', str(orden_id)).execute()
+            
+            orden['detalles'] = detalles_result.data or []
+            
+            return BaseResponse(
+                success=True,
+                message="Orden obtenida exitosamente",
+                data=orden
+            )
+            
+        except Exception as e:
+            return BaseResponse(**self.handle_db_error(e))
+    
+    async def actualizar_orden(self, orden_id: UUID, orden_data: OrdenCompraUpdate) -> BaseResponse:
+        """Actualizar una orden de compra"""
+        try:
+            # Preparar datos para actualización
+            update_data = {k: v for k, v in orden_data.model_dump(exclude_unset=True).items() if v is not None}
+            
+            # Si se actualizan los detalles, recalcular totales
+            if orden_data.detalles is not None:
+                total_orden = sum(detalle.cantidad * detalle.precio_unitario for detalle in orden_data.detalles)
+                iva = total_orden * 0.16
+                total_con_iva = total_orden + iva
+                
+                update_data.update({
+                    'total_orden': total_orden,
+                    'iva': iva,
+                    'total_con_iva': total_con_iva
+                })
+                
+                # Eliminar detalles existentes
+                self.supabase.table('orden_detalles').delete().eq('orden_id', str(orden_id)).execute()
+                
+                # Insertar nuevos detalles
+                for detalle in orden_data.detalles:
+                    detalle_dict = detalle.model_dump()
+                    detalle_dict.update({
+                        'orden_id': str(orden_id),
+                        'subtotal': detalle.cantidad * detalle.precio_unitario
+                    })
+                    
+                    self.supabase.table('orden_detalles').insert(detalle_dict).execute()
+            
+            # Actualizar orden
+            result = self.supabase.table('ordenes_compra').update(update_data).eq(
+                'id', str(orden_id)
+            ).execute()
+            
+            if not result.data:
+                return BaseResponse(success=False, message="Orden no encontrada")
+            
+            return BaseResponse(
+                success=True,
+                message="Orden actualizada exitosamente",
+                data=result.data[0]
+            )
+            
+        except Exception as e:
+            return BaseResponse(**self.handle_db_error(e))
+    
+    async def eliminar_orden(self, orden_id: UUID) -> BaseResponse:
+        """Eliminar una orden de compra"""
+        try:
+            # Verificar que la orden existe y no está aprobada/enviada
+            result = self.supabase.table('ordenes_compra').select('estado').eq(
+                'id', str(orden_id)
+            ).execute()
+            
+            if not result.data:
+                return BaseResponse(success=False, message="Orden no encontrada")
+            
+            estado = result.data[0]['estado']
+            if estado in ['Aprobada', 'Enviada', 'Recibida']:
+                return BaseResponse(
+                    success=False, 
+                    message="No se puede eliminar una orden aprobada o enviada"
+                )
+            
+            # Eliminar orden (los detalles se eliminan por CASCADE)
+            delete_result = self.supabase.table('ordenes_compra').delete().eq(
+                'id', str(orden_id)
+            ).execute()
+            
+            if not delete_result.data:
+                return BaseResponse(success=False, message="Error al eliminar la orden")
+            
+            return BaseResponse(
+                success=True,
+                message="Orden eliminada exitosamente"
+            )
+            
+        except Exception as e:
+            return BaseResponse(**self.handle_db_error(e))
+    
+    async def obtener_estadisticas(self) -> EstadisticasOrdenes:
+        """Obtener estadísticas de órdenes de compra"""
+        try:
+            # Obtener conteos por estado
+            result = self.supabase.table('ordenes_compra').select('estado, total_orden').execute()
+            
+            if not result.data:
+                return EstadisticasOrdenes(
+                    total_ordenes=0, pendientes=0, aprobadas=0, enviadas=0,
+                    recibidas=0, canceladas=0, valor_total_pendientes=0.0,
+                    valor_total_aprobadas=0.0, valor_total_general=0.0
+                )
+            
+            ordenes = result.data
+            
+            # Calcular estadísticas
+            total_ordenes = len(ordenes)
+            pendientes = len([o for o in ordenes if o['estado'] == 'Pendiente'])
+            aprobadas = len([o for o in ordenes if o['estado'] == 'Aprobada'])
+            enviadas = len([o for o in ordenes if o['estado'] == 'Enviada'])
+            recibidas = len([o for o in ordenes if o['estado'] == 'Recibida'])
+            canceladas = len([o for o in ordenes if o['estado'] == 'Cancelada'])
+            
+            valor_total_pendientes = sum(o['total_orden'] for o in ordenes if o['estado'] == 'Pendiente')
+            valor_total_aprobadas = sum(o['total_orden'] for o in ordenes if o['estado'] == 'Aprobada')
+            valor_total_general = sum(o['total_orden'] for o in ordenes)
+            
+            return EstadisticasOrdenes(
+                total_ordenes=total_ordenes,
+                pendientes=pendientes,
+                aprobadas=aprobadas,
+                enviadas=enviadas,
+                recibidas=recibidas,
+                canceladas=canceladas,
+                valor_total_pendientes=valor_total_pendientes,
+                valor_total_aprobadas=valor_total_aprobadas,
+                valor_total_general=valor_total_general
+            )
+            
+        except Exception as e:
+            print(f"Error obteniendo estadísticas de órdenes: {e}")
+            return EstadisticasOrdenes(
+                total_ordenes=0, pendientes=0, aprobadas=0, enviadas=0,
+                recibidas=0, canceladas=0, valor_total_pendientes=0.0,
+                valor_total_aprobadas=0.0, valor_total_general=0.0
+            )
+
+# ===================================
+# SERVICIO DE PERSONAL MÉDICO
+# ===================================
+
+class PersonalService(DatabaseService):
+    """Servicio para gestión de personal médico"""
+    
+    def __init__(self, supabase_client: Client):
+        super().__init__(supabase_client)
+        self.table = "personal_medico"
+    
+    def _generar_numero_empleado(self) -> str:
+        """Generar número único de empleado"""
+        timestamp = int(time.time())
+        return f"EMP-{timestamp % 100000:05d}"
+    
+    async def crear_empleado(self, personal_data: PersonalMedicoCreate) -> dict:
+        """Crear nuevo empleado"""
+        try:
+            empleado_dict = personal_data.model_dump()
+            empleado_dict.update({
+                'id': str(uuid4()),
+                'numero_empleado': self._generar_numero_empleado(),
+                'ultima_actividad': datetime.now().isoformat(),
+                'created_at': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            })
+            
+            result = self.supabase.table(self.table).insert(empleado_dict).execute()
+            
+            if result.data and len(result.data) > 0:
+                return BaseResponse(
+                    success=True,
+                    message="Empleado creado exitosamente",
+                    data=result.data[0]
+                ).model_dump()
+            else:
+                raise Exception("No se pudo crear el empleado")
+                
+        except Exception as e:
+            print(f"Error creando empleado: {e}")
+            return BaseResponse(
+                success=False,
+                message=f"Error creando empleado: {str(e)}"
+            ).model_dump()
+    
+    async def obtener_empleados(self, page: int = 1, limit: int = 10, search: Optional[str] = None) -> dict:
+        """Obtener lista paginada de empleados"""
+        try:
+            offset = (page - 1) * limit
+            
+            # Construir query base
+            query = self.supabase.table(self.table).select("*")
+            
+            # Agregar filtro de búsqueda si se proporciona
+            if search:
+                search_lower = search.lower()
+                query = query.or_(f"nombre.ilike.%{search}%,apellido.ilike.%{search}%,puesto.ilike.%{search}%,departamento.ilike.%{search}%")
+            
+            # Obtener total de registros
+            count_result = query.execute()
+            total = len(count_result.data) if count_result.data else 0
+            
+            # Obtener datos paginados
+            result = query.range(offset, offset + limit - 1).order('created_at', desc=True).execute()
+            
+            pages = ceil(total / limit)
+            
+            return PaginatedResponse(
+                items=result.data or [],
+                total=total,
+                page=page,
+                limit=limit,
+                pages=pages
+            ).model_dump()
+            
+        except Exception as e:
+            print(f"Error obteniendo empleados: {e}")
+            return PaginatedResponse(
+                items=[],
+                total=0,
+                page=page,
+                limit=limit,
+                pages=0
+            ).model_dump()
+    
+    async def obtener_empleado(self, empleado_id: UUID) -> dict:
+        """Obtener empleado específico"""
+        try:
+            result = self.supabase.table(self.table).select("*").eq('id', str(empleado_id)).execute()
+            
+            if result.data and len(result.data) > 0:
+                return BaseResponse(
+                    success=True,
+                    message="Empleado encontrado",
+                    data=result.data[0]
+                ).model_dump()
+            else:
+                return BaseResponse(
+                    success=False,
+                    message="Empleado no encontrado"
+                ).model_dump()
+                
+        except Exception as e:
+            print(f"Error obteniendo empleado: {e}")
+            return BaseResponse(
+                success=False,
+                message=f"Error obteniendo empleado: {str(e)}"
+            ).model_dump()
+    
+    async def actualizar_empleado(self, empleado_id: UUID, personal_data: PersonalMedicoUpdate) -> dict:
+        """Actualizar empleado existente"""
+        try:
+            # Filtrar datos no nulos para actualización parcial
+            update_data = {k: v for k, v in personal_data.model_dump().items() if v is not None}
+            update_data['updated_at'] = datetime.now().isoformat()
+            
+            result = self.supabase.table(self.table).update(update_data).eq('id', str(empleado_id)).execute()
+            
+            if result.data and len(result.data) > 0:
+                return BaseResponse(
+                    success=True,
+                    message="Empleado actualizado exitosamente",
+                    data=result.data[0]
+                ).model_dump()
+            else:
+                return BaseResponse(
+                    success=False,
+                    message="Empleado no encontrado"
+                ).model_dump()
+                
+        except Exception as e:
+            print(f"Error actualizando empleado: {e}")
+            return BaseResponse(
+                success=False,
+                message=f"Error actualizando empleado: {str(e)}"
+            ).model_dump()
+    
+    async def eliminar_empleado(self, empleado_id: UUID) -> dict:
+        """Eliminar empleado (soft delete cambiando estado a Inactivo)"""
+        try:
+            result = self.supabase.table(self.table).update({
+                'estado': EstadoPersonalEnum.INACTIVO.value,
+                'updated_at': datetime.now().isoformat()
+            }).eq('id', str(empleado_id)).execute()
+            
+            if result.data and len(result.data) > 0:
+                return BaseResponse(
+                    success=True,
+                    message="Empleado eliminado exitosamente"
+                ).model_dump()
+            else:
+                return BaseResponse(
+                    success=False,
+                    message="Empleado no encontrado"
+                ).model_dump()
+                
+        except Exception as e:
+            print(f"Error eliminando empleado: {e}")
+            return BaseResponse(
+                success=False,
+                message=f"Error eliminando empleado: {str(e)}"
+            ).model_dump()
+    
+    async def obtener_estadisticas(self) -> EstadisticasPersonal:
+        """Obtener estadísticas del personal"""
+        try:
+            # Obtener todos los empleados
+            result = self.supabase.table(self.table).select("*").execute()
+            empleados = result.data or []
+            
+            # Calcular estadísticas
+            total_empleados = len(empleados)
+            empleados_activos = len([e for e in empleados if e.get('estado') == 'Activo'])
+            empleados_vacaciones = len([e for e in empleados if e.get('estado') == 'Vacaciones'])
+            empleados_licencia = len([e for e in empleados if e.get('estado') == 'Licencia'])
+            empleados_inactivos = len([e for e in empleados if e.get('estado') == 'Inactivo'])
+            
+            # Calcular departamentos únicos
+            departamentos = {}
+            nomina_total = 0
+            for empleado in empleados:
+                dept = empleado.get('departamento')
+                if dept:
+                    departamentos[dept] = departamentos.get(dept, 0) + 1
+                
+                # Sumar salarios solo de empleados activos
+                if empleado.get('estado') in ['Activo', 'Vacaciones', 'Licencia']:
+                    nomina_total += empleado.get('salario', 0)
+            
+            total_departamentos = len(departamentos)
+            
+            return EstadisticasPersonal(
+                total_empleados=total_empleados,
+                empleados_activos=empleados_activos,
+                empleados_vacaciones=empleados_vacaciones,
+                empleados_licencia=empleados_licencia,
+                empleados_inactivos=empleados_inactivos,
+                total_departamentos=total_departamentos,
+                nomina_mensual=nomina_total,
+                departamentos=departamentos
+            )
+            
+        except Exception as e:
+            print(f"Error obteniendo estadísticas de personal: {e}")
+            return EstadisticasPersonal(
+                total_empleados=0,
+                empleados_activos=0,
+                empleados_vacaciones=0,
+                empleados_licencia=0,
+                empleados_inactivos=0,
+                total_departamentos=0,
+                nomina_mensual=0.0,
+                departamentos={}
+            )
+    
+    async def buscar_empleados(self, query: str) -> dict:
+        """Buscar empleados por término de búsqueda"""
+        try:
+            search_lower = query.lower()
+            result = self.supabase.table(self.table).select("*").or_(
+                f"nombre.ilike.%{query}%,apellido.ilike.%{query}%,puesto.ilike.%{query}%,departamento.ilike.%{query}%,especialidad.ilike.%{query}%"
+            ).execute()
+            
+            return BaseResponse(
+                success=True,
+                message=f"Encontrados {len(result.data or [])} empleados",
+                data=result.data or []
+            ).model_dump()
+            
+        except Exception as e:
+            print(f"Error buscando empleados: {e}")
+            return BaseResponse(
+                success=False,
+                message=f"Error buscando empleados: {str(e)}",
+                data=[]
+            ).model_dump()
+    
+    async def actualizar_actividad(self, empleado_id: UUID) -> dict:
+        """Actualizar última actividad del empleado"""
+        try:
+            result = self.supabase.table(self.table).update({
+                'ultima_actividad': datetime.now().isoformat(),
+                'updated_at': datetime.now().isoformat()
+            }).eq('id', str(empleado_id)).execute()
+            
+            return BaseResponse(
+                success=True,
+                message="Actividad actualizada"
+            ).model_dump()
+            
+        except Exception as e:
+            print(f"Error actualizando actividad: {e}")
+            return BaseResponse(
+                success=False,
+                message=f"Error actualizando actividad: {str(e)}"
+            ).model_dump()

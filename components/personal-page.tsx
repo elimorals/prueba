@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -114,10 +114,208 @@ const personalData = [
 ]
 
 export function PersonalPage() {
+  // Estados para el manejo de datos
   const [selectedEmployee, setSelectedEmployee] = useState<any>(null)
+  const [empleados, setEmpleados] = useState<any[]>([])
+  const [estadisticas, setEstadisticas] = useState<any>({
+    total_empleados: 0,
+    empleados_activos: 0,
+    total_departamentos: 0,
+    nomina_mensual: 0
+  })
+  const [loading, setLoading] = useState(true)
+  
+  // Estados para filtros y búsqueda
   const [filtroDepartamento, setFiltroDepartamento] = useState("todos")
   const [filtroEstado, setFiltroEstado] = useState("todos")
+  const [searchTerm, setSearchTerm] = useState("")
+  
+  // Estados para diálogos
   const [showAddDialog, setShowAddDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false)
+  const [showHorarioDialog, setShowHorarioDialog] = useState(false)
+  const [employeeToEdit, setEmployeeToEdit] = useState<any>(null)
+  const [employeeToDelete, setEmployeeToDelete] = useState<any>(null)
+  
+  // Datos de formulario
+  const [formData, setFormData] = useState({
+    nombre: "",
+    apellido: "",
+    puesto: "",
+    departamento: "",
+    email: "",
+    telefono: "",
+    cedula: "",
+    salario: "",
+    turno: "",
+    fecha_ingreso: "",
+    direccion: "",
+    contacto_emergencia: "",
+    especialidad: "",
+    estado: "Activo"
+  })
+
+  // Función para obtener datos del servidor
+  const fetchData = async () => {
+    setLoading(true)
+    try {
+      // Obtener empleados y estadísticas en paralelo
+      const [empleadosRes, estadisticasRes] = await Promise.all([
+        fetch('/api/v1/personal'),
+        fetch('/api/v1/personal/estadisticas')
+      ])
+      
+      if (empleadosRes.ok && estadisticasRes.ok) {
+        const empleadosData = await empleadosRes.json()
+        const estadisticasData = await estadisticasRes.json()
+        
+        setEmpleados(empleadosData.items || [])
+        setEstadisticas(estadisticasData)
+      }
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      // Usar datos de ejemplo si hay error
+      setEmpleados(personalData)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Función para buscar empleados
+  const buscarEmpleados = async (query: string) => {
+    if (!query.trim()) {
+      fetchData()
+      return
+    }
+    
+    try {
+      const response = await fetch(`/api/v1/personal/buscar?query=${encodeURIComponent(query)}`)
+      if (response.ok) {
+        const data = await response.json()
+        setEmpleados(data.data || [])
+      }
+    } catch (error) {
+      console.error('Error searching employees:', error)
+    }
+  }
+
+  // Función para crear empleado
+  const crearEmpleado = async () => {
+    try {
+      const response = await fetch('/api/v1/personal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+      
+      if (response.ok) {
+        setShowAddDialog(false)
+        resetFormData()
+        fetchData() // Actualizar datos
+      }
+    } catch (error) {
+      console.error('Error creating employee:', error)
+    }
+  }
+
+  // Función para actualizar empleado
+  const actualizarEmpleado = async () => {
+    if (!employeeToEdit) return
+    
+    try {
+      const response = await fetch(`/api/v1/personal/${employeeToEdit.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      })
+      
+      if (response.ok) {
+        setShowEditDialog(false)
+        setEmployeeToEdit(null)
+        resetFormData()
+        fetchData() // Actualizar datos
+      }
+    } catch (error) {
+      console.error('Error updating employee:', error)
+    }
+  }
+
+  // Función para eliminar empleado
+  const eliminarEmpleado = async () => {
+    if (!employeeToDelete) return
+    
+    try {
+      const response = await fetch(`/api/v1/personal/${employeeToDelete.id}`, {
+        method: 'DELETE'
+      })
+      
+      if (response.ok) {
+        setShowDeleteDialog(false)
+        setEmployeeToDelete(null)
+        fetchData() // Actualizar datos
+      }
+    } catch (error) {
+      console.error('Error deleting employee:', error)
+    }
+  }
+
+  // Función para resetear formulario
+  const resetFormData = () => {
+    setFormData({
+      nombre: "",
+      apellido: "",
+      puesto: "",
+      departamento: "",
+      email: "",
+      telefono: "",
+      cedula: "",
+      salario: "",
+      turno: "",
+      fecha_ingreso: "",
+      direccion: "",
+      contacto_emergencia: "",
+      especialidad: "",
+      estado: "Activo"
+    })
+  }
+
+  // Función para abrir diálogo de edición
+  const abrirDialogoEdicion = (empleado: any) => {
+    setEmployeeToEdit(empleado)
+    setFormData({
+      nombre: empleado.nombre || "",
+      apellido: empleado.apellido || "",
+      puesto: empleado.puesto || "",
+      departamento: empleado.departamento || "",
+      email: empleado.email || "",
+      telefono: empleado.telefono || "",
+      cedula: empleado.cedula || "",
+      salario: empleado.salario?.toString() || "",
+      turno: empleado.turno || "",
+      fecha_ingreso: empleado.fecha_ingreso || "",
+      direccion: empleado.direccion || "",
+      contacto_emergencia: empleado.contacto_emergencia || "",
+      especialidad: empleado.especialidad || "",
+      estado: empleado.estado || "Activo"
+    })
+    setShowEditDialog(true)
+  }
+
+  // Función para manejar búsqueda
+  const handleSearch = (value: string) => {
+    setSearchTerm(value)
+    if (value.length >= 2) {
+      buscarEmpleados(value)
+    } else if (value.length === 0) {
+      fetchData()
+    }
+  }
+
+  // Cargar datos al montar el componente
+  useEffect(() => {
+    fetchData()
+  }, [])
 
   const getEstadoBadge = (estado: string) => {
     switch (estado) {
@@ -136,13 +334,8 @@ export function PersonalPage() {
     }
   }
 
-  const getTotalSalarios = () => {
-    return personalData.reduce((total, emp) => total + emp.salario, 0)
-  }
-
-  const getActiveEmployees = () => {
-    return personalData.filter((emp) => emp.estado === "Activo").length
-  }
+  // Usar datos filtrados para mostrar
+  const empleadosParaMostrar = empleados.length > 0 ? empleados : personalData
 
   return (
     <SidebarInset>
@@ -176,7 +369,7 @@ export function PersonalPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Total Empleados</p>
-                    <p className="text-2xl font-bold text-foreground">{personalData.length}</p>
+                    <p className="text-2xl font-bold text-foreground">{estadisticas.total_empleados}</p>
                   </div>
                   <Users className="w-8 h-8 text-blue-500" />
                 </div>
@@ -187,7 +380,7 @@ export function PersonalPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Empleados Activos</p>
-                    <p className="text-2xl font-bold text-foreground">{getActiveEmployees()}</p>
+                    <p className="text-2xl font-bold text-foreground">{estadisticas.empleados_activos}</p>
                   </div>
                   <UserCheck className="w-8 h-8 text-green-500" />
                 </div>
@@ -198,7 +391,7 @@ export function PersonalPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Departamentos</p>
-                    <p className="text-2xl font-bold text-foreground">4</p>
+                    <p className="text-2xl font-bold text-foreground">{estadisticas.total_departamentos}</p>
                   </div>
                   <Shield className="w-8 h-8 text-purple-500" />
                 </div>
@@ -209,7 +402,7 @@ export function PersonalPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm font-medium text-muted-foreground">Nómina Mensual</p>
-                    <p className="text-2xl font-bold text-foreground">${getTotalSalarios().toLocaleString()}</p>
+                    <p className="text-2xl font-bold text-foreground">${estadisticas.nomina_mensual?.toLocaleString()}</p>
                   </div>
                   <Activity className="w-8 h-8 text-orange-500" />
                 </div>
@@ -226,7 +419,7 @@ export function PersonalPage() {
                   <CardDescription>Gestiona la información de empleados y recursos humanos</CardDescription>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline">
+                  <Button variant="outline" onClick={() => setShowHorarioDialog(true)}>
                     <Clock className="w-4 h-4 mr-2" />
                     Horarios
                   </Button>
@@ -245,81 +438,138 @@ export function PersonalPage() {
                       <div className="grid grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="nombre">Nombre</Label>
-                          <Input id="nombre" placeholder="Nombre completo" />
+                          <Input 
+                            id="nombre" 
+                            placeholder="Nombre completo" 
+                            value={formData.nombre}
+                            onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="apellido">Apellidos</Label>
-                          <Input id="apellido" placeholder="Apellidos" />
+                          <Input 
+                            id="apellido" 
+                            placeholder="Apellidos" 
+                            value={formData.apellido}
+                            onChange={(e) => setFormData({...formData, apellido: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="puesto">Puesto</Label>
-                          <Input id="puesto" placeholder="Ej: Radiólogo Senior" />
+                          <Input 
+                            id="puesto" 
+                            placeholder="Ej: Radiólogo Senior" 
+                            value={formData.puesto}
+                            onChange={(e) => setFormData({...formData, puesto: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="departamento">Departamento</Label>
-                          <Select>
+                          <Select value={formData.departamento} onValueChange={(value) => setFormData({...formData, departamento: value})}>
                             <SelectTrigger>
                               <SelectValue placeholder="Seleccionar departamento" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="radiologia">Radiología</SelectItem>
-                              <SelectItem value="enfermeria">Enfermería</SelectItem>
-                              <SelectItem value="administracion">Administración</SelectItem>
-                              <SelectItem value="laboratorio">Laboratorio</SelectItem>
+                              <SelectItem value="Radiología">Radiología</SelectItem>
+                              <SelectItem value="Enfermería">Enfermería</SelectItem>
+                              <SelectItem value="Administración">Administración</SelectItem>
+                              <SelectItem value="Laboratorio">Laboratorio</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
                           <Label htmlFor="email">Email Corporativo</Label>
-                          <Input id="email" type="email" placeholder="empleado@hospital.com" />
+                          <Input 
+                            id="email" 
+                            type="email" 
+                            placeholder="empleado@hospital.com" 
+                            value={formData.email}
+                            onChange={(e) => setFormData({...formData, email: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="telefono">Teléfono</Label>
-                          <Input id="telefono" placeholder="+52 55 1234-5678" />
+                          <Input 
+                            id="telefono" 
+                            placeholder="+52 55 1234-5678" 
+                            value={formData.telefono}
+                            onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="cedula">Cédula Profesional</Label>
-                          <Input id="cedula" placeholder="Número de cédula" />
+                          <Input 
+                            id="cedula" 
+                            placeholder="Número de cédula" 
+                            value={formData.cedula}
+                            onChange={(e) => setFormData({...formData, cedula: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="salario">Salario Mensual</Label>
-                          <Input id="salario" type="number" placeholder="50000" />
+                          <Input 
+                            id="salario" 
+                            type="number" 
+                            placeholder="50000" 
+                            value={formData.salario}
+                            onChange={(e) => setFormData({...formData, salario: e.target.value})}
+                          />
                         </div>
                         <div>
                           <Label htmlFor="turno">Turno</Label>
-                          <Select>
+                          <Select value={formData.turno} onValueChange={(value) => setFormData({...formData, turno: value})}>
                             <SelectTrigger>
                               <SelectValue placeholder="Seleccionar turno" />
                             </SelectTrigger>
                             <SelectContent>
-                              <SelectItem value="matutino">Matutino (7:00-15:00)</SelectItem>
-                              <SelectItem value="vespertino">Vespertino (15:00-23:00)</SelectItem>
-                              <SelectItem value="nocturno">Nocturno (23:00-7:00)</SelectItem>
+                              <SelectItem value="Matutino">Matutino (7:00-15:00)</SelectItem>
+                              <SelectItem value="Vespertino">Vespertino (15:00-23:00)</SelectItem>
+                              <SelectItem value="Nocturno">Nocturno (23:00-7:00)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
                         <div>
                           <Label htmlFor="fecha-ingreso">Fecha de Ingreso</Label>
-                          <Input id="fecha-ingreso" type="date" />
+                          <Input 
+                            id="fecha-ingreso" 
+                            type="date" 
+                            value={formData.fecha_ingreso}
+                            onChange={(e) => setFormData({...formData, fecha_ingreso: e.target.value})}
+                          />
                         </div>
                         <div className="col-span-2">
                           <Label htmlFor="direccion">Dirección</Label>
-                          <Input id="direccion" placeholder="Dirección completa" />
+                          <Input 
+                            id="direccion" 
+                            placeholder="Dirección completa" 
+                            value={formData.direccion}
+                            onChange={(e) => setFormData({...formData, direccion: e.target.value})}
+                          />
                         </div>
                         <div className="col-span-2">
                           <Label htmlFor="contacto-emergencia">Contacto de Emergencia</Label>
-                          <Input id="contacto-emergencia" placeholder="Nombre - Teléfono" />
+                          <Input 
+                            id="contacto-emergencia" 
+                            placeholder="Nombre - Teléfono" 
+                            value={formData.contacto_emergencia}
+                            onChange={(e) => setFormData({...formData, contacto_emergencia: e.target.value})}
+                          />
                         </div>
                         <div className="col-span-2">
                           <Label htmlFor="especialidad">Especialidad/Área</Label>
-                          <Textarea id="especialidad" placeholder="Describe la especialidad o área de trabajo..." />
+                          <Textarea 
+                            id="especialidad" 
+                            placeholder="Describe la especialidad o área de trabajo..." 
+                            value={formData.especialidad}
+                            onChange={(e) => setFormData({...formData, especialidad: e.target.value})}
+                          />
                         </div>
                       </div>
                       <div className="flex justify-end gap-2 mt-4">
                         <Button variant="outline" onClick={() => setShowAddDialog(false)}>
                           Cancelar
                         </Button>
-                        <Button className="bg-teal-600 hover:bg-teal-700" onClick={() => setShowAddDialog(false)}>
+                        <Button className="bg-teal-600 hover:bg-teal-700" onClick={crearEmpleado}>
                           Agregar Empleado
                         </Button>
                       </div>
@@ -333,7 +583,12 @@ export function PersonalPage() {
                 <div className="flex-1">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Buscar por nombre, puesto o departamento..." className="pl-10" />
+                    <Input 
+                      placeholder="Buscar por nombre, puesto o departamento..." 
+                      className="pl-10"
+                      value={searchTerm}
+                      onChange={(e) => handleSearch(e.target.value)}
+                    />
                   </div>
                 </div>
                 <Select value={filtroDepartamento} onValueChange={setFiltroDepartamento}>
@@ -382,7 +637,7 @@ export function PersonalPage() {
                       </TableRow>
                     </TableHeader>
                 <TableBody>
-                  {personalData.map((empleado) => (
+                  {empleadosParaMostrar.map((empleado) => (
                     <TableRow key={empleado.id}>
                       <TableCell>
                         <div className="flex items-center gap-3">
@@ -501,10 +756,13 @@ export function PersonalPage() {
                               )}
                             </DialogContent>
                           </Dialog>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => abrirDialogoEdicion(empleado)}>
                             <Edit className="w-4 h-4" />
                           </Button>
-                          <Button variant="ghost" size="sm">
+                          <Button variant="ghost" size="sm" onClick={() => {
+                            setEmployeeToDelete(empleado)
+                            setShowDeleteDialog(true)
+                          }}>
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -518,7 +776,7 @@ export function PersonalPage() {
 
               {/* Vista móvil - Cards */}
               <div className="md:hidden space-y-4">
-                {personalData.map((empleado) => (
+                {empleadosParaMostrar.map((empleado) => (
                   <Card key={empleado.id} className="p-4">
                     <div className="space-y-3">
                       {/* Header del empleado */}
@@ -625,10 +883,13 @@ export function PersonalPage() {
                             )}
                           </DialogContent>
                         </Dialog>
-                        <Button variant="ghost" size="sm" className="tap-target">
+                        <Button variant="ghost" size="sm" className="tap-target" onClick={() => abrirDialogoEdicion(empleado)}>
                           <Edit className="w-4 h-4" />
                         </Button>
-                        <Button variant="ghost" size="sm" className="tap-target">
+                        <Button variant="ghost" size="sm" className="tap-target" onClick={() => {
+                          setEmployeeToDelete(empleado)
+                          setShowDeleteDialog(true)
+                        }}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
@@ -639,6 +900,228 @@ export function PersonalPage() {
             </CardContent>
           </Card>
         </main>
+
+        {/* Dialog de Edición */}
+        <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle>Editar Empleado</DialogTitle>
+              <DialogDescription>Modifica la información del empleado</DialogDescription>
+            </DialogHeader>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="edit-nombre">Nombre</Label>
+                <Input 
+                  id="edit-nombre" 
+                  value={formData.nombre}
+                  onChange={(e) => setFormData({...formData, nombre: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-apellido">Apellidos</Label>
+                <Input 
+                  id="edit-apellido" 
+                  value={formData.apellido}
+                  onChange={(e) => setFormData({...formData, apellido: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-puesto">Puesto</Label>
+                <Input 
+                  id="edit-puesto" 
+                  value={formData.puesto}
+                  onChange={(e) => setFormData({...formData, puesto: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-departamento">Departamento</Label>
+                <Select value={formData.departamento} onValueChange={(value) => setFormData({...formData, departamento: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar departamento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Radiología">Radiología</SelectItem>
+                    <SelectItem value="Enfermería">Enfermería</SelectItem>
+                    <SelectItem value="Administración">Administración</SelectItem>
+                    <SelectItem value="Laboratorio">Laboratorio</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="edit-email">Email</Label>
+                <Input 
+                  id="edit-email" 
+                  type="email" 
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-telefono">Teléfono</Label>
+                <Input 
+                  id="edit-telefono" 
+                  value={formData.telefono}
+                  onChange={(e) => setFormData({...formData, telefono: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-salario">Salario</Label>
+                <Input 
+                  id="edit-salario" 
+                  type="number" 
+                  value={formData.salario}
+                  onChange={(e) => setFormData({...formData, salario: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label htmlFor="edit-estado">Estado</Label>
+                <Select value={formData.estado} onValueChange={(value) => setFormData({...formData, estado: value})}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar estado" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Activo">Activo</SelectItem>
+                    <SelectItem value="Vacaciones">Vacaciones</SelectItem>
+                    <SelectItem value="Licencia">Licencia</SelectItem>
+                    <SelectItem value="Inactivo">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+                Cancelar
+              </Button>
+              <Button className="bg-teal-600 hover:bg-teal-700" onClick={actualizarEmpleado}>
+                Guardar Cambios
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Confirmación de Eliminación */}
+        <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Eliminar Empleado</DialogTitle>
+              <DialogDescription>
+                ¿Estás seguro de que deseas eliminar a {employeeToDelete?.nombre} {employeeToDelete?.apellido}? 
+                Esta acción cambiará su estado a "Inactivo".
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={eliminarEmpleado}>
+                Eliminar
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de Calendario de Horarios */}
+        <Dialog open={showHorarioDialog} onOpenChange={setShowHorarioDialog}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle>Calendario de Horarios del Personal</DialogTitle>
+              <DialogDescription>Vista en tiempo real de los horarios de todos los empleados</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {/* Vista de calendario simple por turnos */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Turno Matutino (7:00-15:00)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {empleadosParaMostrar
+                        .filter(emp => emp.turno === "Matutino" && emp.estado === "Activo")
+                        .map(emp => (
+                          <div key={emp.id} className="flex items-center gap-2 p-2 bg-blue-50 rounded">
+                            <Badge variant="outline" className="text-xs">{emp.departamento}</Badge>
+                            <span className="text-sm">{emp.nombre} {emp.apellido}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Turno Vespertino (15:00-23:00)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {empleadosParaMostrar
+                        .filter(emp => emp.turno === "Vespertino" && emp.estado === "Activo")
+                        .map(emp => (
+                          <div key={emp.id} className="flex items-center gap-2 p-2 bg-orange-50 rounded">
+                            <Badge variant="outline" className="text-xs">{emp.departamento}</Badge>
+                            <span className="text-sm">{emp.nombre} {emp.apellido}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+                
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Turno Nocturno (23:00-7:00)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-2">
+                      {empleadosParaMostrar
+                        .filter(emp => emp.turno === "Nocturno" && emp.estado === "Activo")
+                        .map(emp => (
+                          <div key={emp.id} className="flex items-center gap-2 p-2 bg-purple-50 rounded">
+                            <Badge variant="outline" className="text-xs">{emp.departamento}</Badge>
+                            <span className="text-sm">{emp.nombre} {emp.apellido}</span>
+                          </div>
+                        ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+              
+              {/* Resumen de disponibilidad */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-sm">Resumen de Disponibilidad</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                    <div>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {empleadosParaMostrar.filter(emp => emp.turno === "Matutino" && emp.estado === "Activo").length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Matutino</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-orange-600">
+                        {empleadosParaMostrar.filter(emp => emp.turno === "Vespertino" && emp.estado === "Activo").length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Vespertino</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {empleadosParaMostrar.filter(emp => emp.turno === "Nocturno" && emp.estado === "Activo").length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Nocturno</p>
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold text-yellow-600">
+                        {empleadosParaMostrar.filter(emp => emp.estado === "Vacaciones").length}
+                      </p>
+                      <p className="text-sm text-muted-foreground">Vacaciones</p>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </SidebarInset>
   )

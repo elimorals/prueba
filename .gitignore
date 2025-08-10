@@ -341,3 +341,4 @@ secrets.json
 .cache/
 .tmp/
 tmp/
+.vercel

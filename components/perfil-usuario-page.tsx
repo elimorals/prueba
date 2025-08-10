@@ -62,13 +62,13 @@ export function PerfilUsuarioPage() {
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold text-foreground">Perfil de Usuario</h1>
-            <p className="text-sm text-muted-foreground">Gestiona tu cuenta y configuración de RADIX</p>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg lg:text-xl font-semibold text-foreground truncate">Perfil de Usuario</h1>
+            <p className="text-sm text-muted-foreground hidden sm:block">Gestiona tu cuenta y configuración de RADIX</p>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hidden sm:flex">
               <Calendar className="w-4 h-4 mr-2" />
               Hoy: 2 Enero, 2025
             </Button>
@@ -76,16 +76,16 @@ export function PerfilUsuarioPage() {
         </header>
 
         {/* Contenido Principal */}
-        <main className="flex-1 overflow-auto p-6">
-          <div className="max-w-6xl mx-auto space-y-6">
+        <main className="flex-1 overflow-auto p-4 lg:p-6">
+          <div className="max-w-6xl mx-auto space-y-4 lg:space-y-6">
             {/* Header del Perfil */}
             <Card>
-              <CardContent className="p-6">
-                <div className="flex items-center gap-6">
-                  <div className="relative">
-                    <Avatar className="w-24 h-24">
+              <CardContent className="p-4 lg:p-6">
+                <div className="flex flex-col sm:flex-row items-center gap-4 lg:gap-6">
+                  <div className="relative flex-shrink-0">
+                    <Avatar className="w-20 h-20 lg:w-24 lg:h-24">
                       <AvatarImage src="/placeholder.svg?height=96&width=96" />
-                      <AvatarFallback className="text-2xl bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300">
+                      <AvatarFallback className="text-xl lg:text-2xl bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300">
                         MG
                       </AvatarFallback>
                     </Avatar>
@@ -96,35 +96,37 @@ export function PerfilUsuarioPage() {
                       <Upload className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h2 className="text-2xl font-bold text-foreground">Dr. María González</h2>
-                      <Badge className="bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300">
+                  <div className="flex-1 text-center sm:text-left min-w-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 lg:gap-3 mb-2">
+                      <h2 className="text-xl lg:text-2xl font-bold text-foreground truncate">Dr. María González</h2>
+                      <Badge className="bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-300 self-center sm:self-start">
                         <Stethoscope className="w-3 h-3 mr-1" />
-                        Radióloga Certificada
+                        <span className="hidden sm:inline">Radióloga Certificada</span>
+                        <span className="sm:hidden">Radióloga</span>
                       </Badge>
                     </div>
-                    <p className="text-muted-foreground mb-3">
+                    <p className="text-muted-foreground mb-3 text-sm lg:text-base">
                       Especialista en Radiología • Hospital General CDMX • 12 años de experiencia
                     </p>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-1">
-                        <Mail className="w-4 h-4" />
-                        maria.gonzalez@hospital.com
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 text-xs lg:text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1 justify-center sm:justify-start">
+                        <Mail className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">maria.gonzalez@hospital.com</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Building className="w-4 h-4" />
-                        Hospital General CDMX
+                      <div className="flex items-center gap-1 justify-center sm:justify-start">
+                        <Building className="w-4 h-4 flex-shrink-0" />
+                        <span className="truncate">Hospital General CDMX</span>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <Activity className="w-4 h-4" />
-                        Última actividad: Hace 2 horas
+                      <div className="flex items-center gap-1 justify-center sm:justify-start">
+                        <Activity className="w-4 h-4 flex-shrink-0" />
+                        <span className="hidden lg:inline">Última actividad: Hace 2 horas</span>
+                        <span className="lg:hidden">Activa</span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">1,247</div>
-                    <div className="text-sm text-muted-foreground">Créditos disponibles</div>
+                  <div className="text-center flex-shrink-0">
+                    <div className="text-xl lg:text-2xl font-bold text-teal-600 dark:text-teal-400">1,247</div>
+                    <div className="text-xs lg:text-sm text-muted-foreground">Créditos disponibles</div>
                   </div>
                 </div>
               </CardContent>
@@ -132,30 +134,30 @@ export function PerfilUsuarioPage() {
 
             {/* Tabs de Configuración */}
             <Tabs defaultValue="perfil" className="space-y-6">
-              <TabsList className="grid w-full grid-cols-6">
-                <TabsTrigger value="perfil" className="flex items-center gap-2">
-                  <User className="w-4 h-4" />
-                  Perfil
+              <TabsList className="grid w-full grid-cols-2 lg:grid-cols-6 h-auto">
+                <TabsTrigger value="perfil" className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm">
+                  <User className="w-3 h-3 lg:w-4 lg:h-4" />
+                  <span className="hidden sm:inline">Perfil</span>
                 </TabsTrigger>
-                <TabsTrigger value="cuenta" className="flex items-center gap-2">
-                  <Settings className="w-4 h-4" />
-                  Cuenta
+                <TabsTrigger value="cuenta" className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm">
+                  <Settings className="w-3 h-3 lg:w-4 lg:h-4" />
+                  <span className="hidden sm:inline">Cuenta</span>
                 </TabsTrigger>
-                <TabsTrigger value="creditos" className="flex items-center gap-2">
-                  <CreditCard className="w-4 h-4" />
-                  Créditos
+                <TabsTrigger value="creditos" className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm">
+                  <CreditCard className="w-3 h-3 lg:w-4 lg:h-4" />
+                  <span className="hidden sm:inline">Créditos</span>
                 </TabsTrigger>
-                <TabsTrigger value="seguridad" className="flex items-center gap-2">
-                  <Shield className="w-4 h-4" />
-                  Seguridad
+                <TabsTrigger value="seguridad" className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm">
+                  <Shield className="w-3 h-3 lg:w-4 lg:h-4" />
+                  <span className="hidden sm:inline">Seguridad</span>
                 </TabsTrigger>
-                <TabsTrigger value="notificaciones" className="flex items-center gap-2">
-                  <Bell className="w-4 h-4" />
-                  Notificaciones
+                <TabsTrigger value="notificaciones" className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm">
+                  <Bell className="w-3 h-3 lg:w-4 lg:h-4" />
+                  <span className="hidden sm:inline">Notificaciones</span>
                 </TabsTrigger>
-                <TabsTrigger value="preferencias" className="flex items-center gap-2">
-                  <Palette className="w-4 h-4" />
-                  Preferencias
+                <TabsTrigger value="preferencias" className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm">
+                  <Palette className="w-3 h-3 lg:w-4 lg:h-4" />
+                  <span className="hidden sm:inline">Preferencias</span>
                 </TabsTrigger>
               </TabsList>
 
@@ -168,7 +170,7 @@ export function PerfilUsuarioPage() {
                       <CardDescription>Actualiza tu información profesional</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="nombre">Nombre</Label>
                           <Input id="nombre" defaultValue="María" />
@@ -232,7 +234,7 @@ export function PerfilUsuarioPage() {
                           defaultValue="Av. Cuauhtémoc 330, Doctores, Cuauhtémoc, 06720 Ciudad de México, CDMX"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <div>
                           <Label htmlFor="ciudad">Ciudad</Label>
                           <Input id="ciudad" defaultValue="Ciudad de México" />
@@ -256,9 +258,9 @@ export function PerfilUsuarioPage() {
                   </Card>
                 </div>
 
-                <div className="flex justify-end gap-2">
-                  <Button variant="outline">Cancelar</Button>
-                  <Button className="bg-teal-600 hover:bg-teal-700">
+                <div className="flex flex-col sm:flex-row justify-end gap-2">
+                  <Button variant="outline" className="w-full sm:w-auto">Cancelar</Button>
+                  <Button className="bg-teal-600 hover:bg-teal-700 w-full sm:w-auto">
                     <Save className="w-4 h-4 mr-2" />
                     Guardar Cambios
                   </Button>
@@ -372,18 +374,18 @@ export function PerfilUsuarioPage() {
                       <CardDescription>Gestiona tus créditos y consumo de IA</CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="grid grid-cols-3 gap-4 mb-6">
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
                         <div className="text-center p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-teal-600 dark:text-teal-400">1,247</div>
-                          <div className="text-sm text-muted-foreground">Créditos Disponibles</div>
+                          <div className="text-xl lg:text-2xl font-bold text-teal-600 dark:text-teal-400">1,247</div>
+                          <div className="text-xs lg:text-sm text-muted-foreground">Créditos Disponibles</div>
                         </div>
                         <div className="text-center p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">453</div>
-                          <div className="text-sm text-muted-foreground">Usados Este Mes</div>
+                          <div className="text-xl lg:text-2xl font-bold text-blue-600 dark:text-blue-400">453</div>
+                          <div className="text-xs lg:text-sm text-muted-foreground">Usados Este Mes</div>
                         </div>
                         <div className="text-center p-4 bg-green-50 dark:bg-green-900/20 rounded-lg">
-                          <div className="text-2xl font-bold text-green-600 dark:text-green-400">$89</div>
-                          <div className="text-sm text-muted-foreground">Ahorro Este Mes</div>
+                          <div className="text-xl lg:text-2xl font-bold text-green-600 dark:text-green-400">$89</div>
+                          <div className="text-xs lg:text-sm text-muted-foreground">Ahorro Este Mes</div>
                         </div>
                       </div>
 

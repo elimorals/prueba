@@ -378,7 +378,13 @@ INSERT INTO inventarios (codigo_item, nombre_item, categoria, descripcion, unida
 ALTER TABLE pacientes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE estudios ENABLE ROW LEVEL SECURITY;
 ALTER TABLE reportes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE conversaciones_chat ENABLE ROW LEVEL SECURITY;
 ALTER TABLE mensajes_chat ENABLE ROW LEVEL SECURITY;
+ALTER TABLE personal_medico ENABLE ROW LEVEL SECURITY;
+ALTER TABLE inventarios ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ordenes_compra ENABLE ROW LEVEL SECURITY;
+ALTER TABLE orden_detalles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reporte_embeddings ENABLE ROW LEVEL SECURITY;
 
 -- Política básica para desarrollo (permitir todo)
 -- En producción, implementar políticas más restrictivas
@@ -391,8 +397,36 @@ CREATE POLICY "Allow all for development" ON estudios FOR ALL USING (true);
 DROP POLICY IF EXISTS "Allow all for development" ON reportes;
 CREATE POLICY "Allow all for development" ON reportes FOR ALL USING (true);
 
+DROP POLICY IF EXISTS "Allow all for development" ON conversaciones_chat;
+CREATE POLICY "Allow all for development" ON conversaciones_chat FOR ALL USING (true);
+
 DROP POLICY IF EXISTS "Allow all for development" ON mensajes_chat;
 CREATE POLICY "Allow all for development" ON mensajes_chat FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow all for development" ON personal_medico;
+CREATE POLICY "Allow all for development" ON personal_medico FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow all for development" ON inventarios;
+CREATE POLICY "Allow all for development" ON inventarios FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow all for development" ON ordenes_compra;
+CREATE POLICY "Allow all for development" ON ordenes_compra FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow all for development" ON orden_detalles;
+CREATE POLICY "Allow all for development" ON orden_detalles FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Allow all for development" ON reporte_embeddings;
+CREATE POLICY "Allow all for development" ON reporte_embeddings FOR ALL USING (true);
+
+-- Otorgar permisos explícitos al rol service_role
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO service_role;
+
+-- Otorgar permisos para futuras tablas
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO service_role;
 
 -- ===================================
 -- VISTAS ÚTILES

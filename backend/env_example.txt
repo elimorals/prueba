@@ -1,0 +1,23 @@
+# Configuración del Backend - Radix IA
+# Copia este archivo como .env y configura tus valores
+
+# Base de datos Supabase
+SUPABASE_URL=your_supabase_url_here
+SUPABASE_KEY=your_supabase_anon_key_here
+
+# API de Embeddings (Hugging Face)
+EMBEDDING_API_URL=https://fs7mn6r3tsu0su7q.us-east-1.aws.endpoints.huggingface.cloud
+
+# API de IA (Hugging Face TGI)
+TGI_URL=https://dbrmcpr7fjvk2cz6.us-east-1.aws.endpoints.huggingface.cloud
+HF_API_KEY=your_huggingface_api_key_here
+
+# Configuración del servidor
+HOST=0.0.0.0
+PORT=8000
+DEBUG=true
+
+# Configuración de CORS
+CORS_ORIGINS=["http://localhost:3000", "http://127.0.0.1:3000"]
+
+

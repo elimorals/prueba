@@ -68,16 +68,16 @@ export function AnalisisDicomPage() {
         <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
-          <div className="flex-1">
-            <h1 className="text-xl font-semibold flex items-center gap-2">
-              <Activity className="w-6 h-6 text-blue-600" />
-              Análisis DICOM
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg lg:text-xl font-semibold flex items-center gap-2">
+              <Activity className="w-5 h-5 lg:w-6 lg:h-6 text-blue-600" />
+              <span className="truncate">Análisis DICOM</span>
             </h1>
-            <p className="text-sm text-muted-foreground">Visor avanzado de imágenes médicas DICOM</p>
+            <p className="text-sm text-muted-foreground hidden sm:block">Visor avanzado de imágenes médicas DICOM</p>
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <Button variant="outline" size="sm">
+            <Button variant="outline" size="sm" className="hidden sm:flex">
               <Calendar className="w-4 h-4 mr-2" />
               Hoy: 2 Enero, 2025
             </Button>
@@ -85,37 +85,39 @@ export function AnalisisDicomPage() {
         </header>
 
         {/* Contenido Principal */}
-        <div className="flex-1 flex">
+        <div className="flex-1 flex flex-col lg:flex-row">
           {/* Visor DICOM Principal */}
-          <div className="flex-1 flex flex-col">
+          <div className="flex-1 flex flex-col order-2 lg:order-1">
             {/* Barra de Herramientas */}
             <div className="border-b p-2 bg-muted/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1 overflow-x-auto">
                   {herramientas.map((herramienta) => (
                     <Button
                       key={herramienta.id}
                       variant={herramientaActiva === herramienta.id ? "default" : "outline"}
                       size="sm"
+                      className="flex-shrink-0"
                       onClick={() => setHerramientaActiva(herramienta.id)}
                     >
-                      <herramienta.icon className="w-4 h-4" />
+                      <herramienta.icon className="w-4 h-4 sm:mr-1" />
+                      <span className="hidden sm:inline">{herramienta.label}</span>
                     </Button>
                   ))}
-                  <Separator orientation="vertical" className="h-6 mx-2" />
-                  <Button variant="outline" size="sm">
+                  <Separator orientation="vertical" className="h-6 mx-1 hidden sm:block" />
+                  <Button variant="outline" size="sm" className="flex-shrink-0">
                     <RotateCw className="w-4 h-4" />
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="flex-shrink-0">
                     <Maximize className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge variant="secondary">Zoom: {zoomLevel[0]}%</Badge>
-                  <Button variant="outline" size="sm">
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="hidden sm:inline-flex">Zoom: {zoomLevel[0]}%</Badge>
+                  <Button variant="outline" size="sm" className="flex-shrink-0">
                     <Download className="w-4 h-4" />
                   </Button>
-                  <Button variant="outline" size="sm">
+                  <Button variant="outline" size="sm" className="flex-shrink-0">
                     <Share className="w-4 h-4" />
                   </Button>
                 </div>
@@ -153,40 +155,40 @@ export function AnalisisDicomPage() {
               </div>
 
               {/* Controles de Imagen */}
-              <div className="absolute bottom-4 left-4 bg-black/70 text-white p-3 rounded space-y-2">
+              <div className="absolute bottom-4 left-4 right-4 lg:left-4 lg:right-auto bg-black/70 text-white p-3 rounded space-y-2 max-w-xs">
                 <div className="text-xs font-medium">Controles de Imagen</div>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <ZoomIn className="w-3 h-3" />
-                    <span className="text-xs w-12">Zoom:</span>
+                    <ZoomIn className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-xs w-12 flex-shrink-0">Zoom:</span>
                     <Slider
                       value={zoomLevel}
                       onValueChange={setZoomLevel}
                       max={500}
                       min={25}
                       step={25}
-                      className="w-20"
+                      className="flex-1 min-w-0"
                     />
-                    <span className="text-xs w-8">{zoomLevel[0]}%</span>
+                    <span className="text-xs w-8 flex-shrink-0">{zoomLevel[0]}%</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Palette className="w-3 h-3" />
-                    <span className="text-xs w-12">Brillo:</span>
+                    <Palette className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-xs w-12 flex-shrink-0">Brillo:</span>
                     <Slider
                       value={brightness}
                       onValueChange={setBrightness}
                       max={100}
                       min={0}
                       step={5}
-                      className="w-20"
+                      className="flex-1 min-w-0"
                     />
-                    <span className="text-xs w-8">{brightness[0]}%</span>
+                    <span className="text-xs w-8 flex-shrink-0">{brightness[0]}%</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <Palette className="w-3 h-3" />
-                    <span className="text-xs w-12">Contraste:</span>
-                    <Slider value={contrast} onValueChange={setContrast} max={100} min={0} step={5} className="w-20" />
-                    <span className="text-xs w-8">{contrast[0]}%</span>
+                    <Palette className="w-3 h-3 flex-shrink-0" />
+                    <span className="text-xs w-12 flex-shrink-0">Contraste:</span>
+                    <Slider value={contrast} onValueChange={setContrast} max={100} min={0} step={5} className="flex-1 min-w-0" />
+                    <span className="text-xs w-8 flex-shrink-0">{contrast[0]}%</span>
                   </div>
                 </div>
               </div>
@@ -194,7 +196,7 @@ export function AnalisisDicomPage() {
           </div>
 
           {/* Panel Lateral */}
-          <div className="w-80 border-l bg-muted/30 flex flex-col">
+          <div className="w-full lg:w-80 border-t lg:border-t-0 lg:border-l bg-muted/30 flex flex-col order-1 lg:order-2 max-h-96 lg:max-h-none overflow-y-auto">
             {/* Estudios Recientes */}
             <Card className="m-4 mb-2">
               <CardHeader className="pb-3">
@@ -221,8 +223,8 @@ export function AnalisisDicomPage() {
                         {estudio.estado}
                       </Badge>
                     </div>
-                    <div className="text-sm text-muted-foreground">{estudio.paciente}</div>
-                    <div className="text-xs text-muted-foreground">{estudio.tipo}</div>
+                    <div className="text-sm text-muted-foreground truncate">{estudio.paciente}</div>
+                    <div className="text-xs text-muted-foreground truncate">{estudio.tipo}</div>
                     <div className="text-xs text-muted-foreground">{estudio.fecha}</div>
                   </div>
                 ))}
